@@ -1,0 +1,177 @@
+from datetime import date
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from fragility_map.api.server import app
+from fragility_map.db.repository import FragilityRepository
+from fragility_map.extraction.candidates import RelationshipCandidateV2
+from fragility_map.extraction.lifecycle import CandidateLifecycle
+from fragility_map.extraction.verifier import SourceManifestEntry, verify_candidate
+from fragility_map.ingestion.official_pdfs import SourceRecord
+
+
+def test_compound_credit_event_returns_impact_exposure_and_dissolve() -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event",
+        json={
+            "incremental_gaap_loss": 10_000_000_000,
+            "credit_status": "severe_distress",
+            "default_status": "not_defaulted",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert (
+        payload["scenario"]["language"]
+        == "calculated Impact plus activated Exposure; downstream loss not identifiable"
+    )
+    assert (
+        next(edge for edge in payload["edges"] if edge["relationshipId"] == "openai-msft")[
+            "tier"
+        ]
+        == "solid_red"
+    )
+    assert (
+        next(
+            edge
+            for edge in payload["edges"]
+            if edge["relationshipId"] == "openai-coreweave"
+        )["resultKind"]
+        == "exposure"
+    )
+    assert (
+        next(
+            edge for edge in payload["edges"] if edge["relationshipId"] == "coreweave-nvda"
+        )["value"]
+        is None
+    )
+
+
+def test_compound_credit_event_rejects_missing_or_invalid_state() -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event", json={"incremental_gaap_loss": -1}
+    )
+
+    assert response.status_code == 422
+
+
+def _candidate() -> RelationshipCandidateV2:
+    return RelationshipCandidateV2(
+        candidate_id="cand-1",
+        source_id="msft-filing",
+        source_accession="acc-1",
+        source_company_id="msft",
+        target_company_id="coreweave",
+        relationship_type="take_or_pay",
+        quoted_text="Microsoft has purchase commitments of $4 billion through 2030 with CoreWeave.",
+        numeric_token="$4 billion",
+        value=4_000_000_000,
+        unit="USD",
+        period="through 2030",
+        supported_rule="reported purchase commitment envelope",
+        unsupported_inference="the commitment is specifically with CoreWeave",
+    )
+
+
+def _configure_review_store(tmp_path: Path, monkeypatch) -> FragilityRepository:
+    filing_text = _candidate().quoted_text
+    filing_path = tmp_path / "msft-filing.txt"
+    filing_path.write_text(filing_text, encoding="utf-8")
+    repo = FragilityRepository(tmp_path / "review.duckdb")
+    repo.create_schema()
+    repo.upsert_sources(
+        [
+            SourceRecord(
+                source_id="msft-filing",
+                company_id="msft",
+                source_type="10-k",
+                source_date=date(2025, 1, 1),
+                url="https://example.com/msft-filing",
+                local_path=str(filing_path),
+                extraction_status="complete",
+            )
+        ]
+    )
+    candidate = _candidate()
+    verification = verify_candidate(
+        filing_text,
+        candidate,
+        [SourceManifestEntry(candidate.source_accession, candidate.source_id)],
+    )
+    repo.save_candidate(candidate, verification)
+    lifecycle = CandidateLifecycle()
+    lifecycle.submit(candidate, verification)
+    monkeypatch.setattr(app.state, "review_repository", repo, raising=False)
+    monkeypatch.setattr(app.state, "review_lifecycle", lifecycle, raising=False)
+    return repo
+
+
+def test_review_routes_persist_transition_and_reverify_edit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = _configure_review_store(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    listed = client.get("/api/v2/review/candidates")
+
+    assert listed.status_code == 200
+    assert listed.json()["reviewCandidates"][0]["candidateId"] == "cand-1"
+    assert listed.json()["reviewCandidates"][0]["verificationChecks"][0]["name"] == "quoted_text"
+
+    approved = client.post(
+        "/api/v2/review/cand-1/approve",
+        json={"reviewer_id": "reviewer-1", "reason": "quote and amount confirmed"},
+    )
+
+    assert approved.status_code == 200
+    assert repo.get_candidate("cand-1")["status"] == "approved"
+    assert approved.json()["auditLog"][-1]["toStatus"] == "approved"
+
+    invalid_transition = client.post(
+        "/api/v2/review/cand-1/approve",
+        json={"reviewer_id": "reviewer-1", "reason": "again"},
+    )
+
+    assert invalid_transition.status_code == 409
+
+    edited_candidate = _candidate().model_copy(update={"value": 5_000_000_000})
+    edited = client.post(
+        "/api/v2/review/cand-1/edit",
+        json={
+            "candidate": edited_candidate.model_dump(mode="json"),
+            "reviewer_id": "reviewer-2",
+            "reason": "corrected amount",
+        },
+    )
+
+    assert edited.status_code == 200
+    assert repo.get_candidate("cand-1")["mechanically_valid"] is False
+    assert edited.json()["auditLog"][-1]["verificationValid"] is False
+
+    assert client.post(
+        "/api/v2/review/missing/reject",
+        json={"reviewer_id": "reviewer-1", "reason": "not found"},
+    ).status_code == 404
+
+    assert client.post(
+        "/api/v2/review/cand-1/edit",
+        json={"reviewer_id": "reviewer-2", "reason": "missing candidate"},
+    ).status_code == 422
+
+    invalid_candidate = _candidate().model_dump(mode="json")
+    invalid_candidate["numeric_result"] = -2_700_000_000
+    assert client.post(
+        "/api/v2/review/cand-1/edit",
+        json={
+            "candidate": invalid_candidate,
+            "reviewer_id": "reviewer-2",
+            "reason": "client result fields are forbidden",
+        },
+    ).status_code == 422
+
+    assert client.post(
+        "/api/v2/review/cand-1/approve",
+        json={"reviewer_id": "  ", "reason": "valid reason"},
+    ).status_code == 422
