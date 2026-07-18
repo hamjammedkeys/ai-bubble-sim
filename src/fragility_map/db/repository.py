@@ -1,9 +1,11 @@
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import duckdb
 
+from fragility_map.extraction.relationships import RelationshipCandidate
 from fragility_map.ingestion.companies import CompanyConfig
 from fragility_map.ingestion.official_pdfs import SourceRecord
 
@@ -78,3 +80,55 @@ class FragilityRepository:
                     for s in sources
                 ],
             )
+
+    def insert_relationship_candidates(self, candidates: Sequence[RelationshipCandidate]) -> None:
+        with self.connect() as connection:
+            for index, candidate in enumerate(candidates):
+                evidence_id = f"{candidate.source_id}-evidence-{index}"
+                relationship_id = f"{candidate.source_id}-relationship-{index}"
+                connection.execute(
+                    """
+                    INSERT OR REPLACE INTO evidence_items
+                    (
+                        evidence_id, source_id, company_id, evidence_type,
+                        extracted_text, parser_method, confidence, source_location
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        evidence_id,
+                        candidate.source_id,
+                        candidate.company_id,
+                        candidate.evidence_type,
+                        candidate.extracted_text,
+                        candidate.parser_method,
+                        candidate.confidence,
+                        None,
+                    ),
+                )
+                connection.execute(
+                    """
+                    INSERT OR REPLACE INTO relationships
+                    (
+                        relationship_id, buyer_company_id, seller_company_id,
+                        relationship_type, annual_flow_low, annual_flow_base,
+                        annual_flow_high, dependency_percentage, confidence_score,
+                        evidence_item_ids, estimation_method, notes
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        relationship_id,
+                        "unknown_buyer",
+                        candidate.company_id,
+                        candidate.evidence_type,
+                        candidate.amount,
+                        candidate.amount or 0.0,
+                        candidate.amount,
+                        candidate.percentage,
+                        candidate.confidence,
+                        json.dumps([evidence_id]),
+                        "exact" if candidate.amount else "percentage-derived",
+                        "Automated candidate requires buyer resolution when buyer is not named.",
+                    ),
+                )
