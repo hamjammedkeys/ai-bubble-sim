@@ -295,7 +295,7 @@ def test_take_or_pay_accumulates_while_preserving_quantified_impact() -> None:
     assert node.epistemic_state == "quantified_impact"
 
 
-def test_take_or_pay_rejects_non_quantifying_or_missing_envelope() -> None:
+def test_take_or_pay_dissolves_non_quantifying_and_rejects_missing_envelope() -> None:
     non_quantifying = EdgeProvenance(
         ProvenanceLabel.REPORTED,
         ProvenanceLabel.REPORTED,
@@ -325,5 +325,71 @@ def test_take_or_pay_rejects_non_quantifying_or_missing_envelope() -> None:
         Shock("openai", credit_status="severe_distress"),
     )
 
-    assert result.edges == []
-    assert "coreweave" not in result.nodes
+    assert len(result.edges) == 1
+    assert result.edges[0].relationship_id == "openai-coreweave-assumed"
+    assert result.edges[0].tier == Tier.DIFFUSE_AMBER
+    assert result.edges[0].value is None
+    assert result.nodes["coreweave"].epistemic_state == "not_identifiable"
+
+
+def _behavioural_provenance() -> EdgeProvenance:
+    return EdgeProvenance(
+        ProvenanceLabel.REPORTED,   # relationship exists (disclosed dependency)
+        ProvenanceLabel.ASSUMED,
+        ProvenanceLabel.ASSUMED,    # propagation NOT constrained
+        ProvenanceLabel.ASSUMED,
+    )
+
+
+def test_behavioural_edge_dissolves_to_diffuse_amber_without_number() -> None:
+    rel = StructuralRelationship(
+        "coreweave-nvda",
+        "coreweave",
+        "nvda",
+        StructureType.BEHAVIOURAL,
+        _behavioural_provenance(),
+    )
+    shock = Shock("coreweave", incremental_gaap_loss=5_000, credit_status="severe_distress")
+
+    result = run_compound_shock([rel], shock)
+
+    edge = result.edges[0]
+    assert edge.tier == Tier.DIFFUSE_AMBER
+    assert edge.result_kind == "behavioural"
+    assert edge.value is None
+    node = result.nodes["nvda"]
+    assert node.quantified_impact is None
+    assert node.activated_exposure is None
+    assert node.epistemic_state == "not_identifiable"
+
+
+def test_unconstrained_structural_edge_dissolves_without_overwriting_impact() -> None:
+    relationships = [
+        StructuralRelationship(
+            "openai-msft-quantified",
+            "openai",
+            "msft",
+            StructureType.EQUITY_METHOD,
+            _equity_provenance(),
+            ownership_share=0.25,
+        ),
+        StructuralRelationship(
+            "openai-msft-unconstrained",
+            "openai",
+            "msft",
+            StructureType.EQUITY_METHOD,
+            _behavioural_provenance(),
+            ownership_share=0.10,
+        ),
+    ]
+
+    result = run_compound_shock(
+        relationships,
+        Shock("openai", incremental_gaap_loss=400),
+    )
+
+    assert result.edges[1].tier == Tier.DIFFUSE_AMBER
+    assert result.edges[1].result_kind == "behavioural"
+    assert result.edges[1].value is None
+    assert result.nodes["msft"].quantified_impact == -100
+    assert result.nodes["msft"].epistemic_state == "quantified_impact"

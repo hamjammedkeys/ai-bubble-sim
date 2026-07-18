@@ -70,11 +70,32 @@ def run_compound_shock(
     for rel in relationships:
         if rel.source_company_id != shock.source_company_id:
             continue
+        if rel.structure_type == StructureType.BEHAVIOURAL or not quantifies_propagation(
+            rel.provenance
+        ):
+            edges.append(
+                EdgeResult(
+                    rel.relationship_id,
+                    rel.source_company_id,
+                    rel.target_company_id,
+                    Tier.DIFFUSE_AMBER,
+                    "behavioural",
+                    None,
+                    "documented dependency; magnitude not identifiable from evidence",
+                )
+            )
+            if rel.target_company_id not in nodes:
+                nodes[rel.target_company_id] = NodeResult(
+                    rel.target_company_id,
+                    quantified_impact=None,
+                    activated_exposure=None,
+                    epistemic_state="not_identifiable",
+                )
+            continue
         if rel.structure_type == StructureType.EQUITY_METHOD:
             if (
                 shock.incremental_gaap_loss is None
                 or rel.ownership_share is None
-                or not quantifies_propagation(rel.provenance)
             ):
                 continue
             value = -(rel.ownership_share * shock.incremental_gaap_loss)
@@ -108,7 +129,6 @@ def run_compound_shock(
             if (
                 not distressed
                 or rel.committed_envelope is None
-                or not quantifies_propagation(rel.provenance)
             ):
                 continue
             edges.append(
