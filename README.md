@@ -26,9 +26,11 @@ make test
 npm --prefix frontend run test -- --run
 ```
 
-With the API and frontend running:
+Install the root Playwright dependency, then run E2E with only the frontend dev server running. Playwright intercepts and mocks the API:
 
 ```bash
+npm install
+npm --prefix frontend run dev
 npm run e2e
 ```
 

@@ -122,6 +122,34 @@ describe("NetworkMap", () => {
     expect(edge.hasClass("pulse")).toBe(false);
   });
 
+  it("schedules pulses by round while preserving payload order within a round", () => {
+    vi.useFakeTimers();
+    const unsortedGraph: GraphPayload = {
+      ...graph,
+      edges: [
+        ...graph.edges,
+        { data: { ...graph.edges[0].data, id: "round-zero-b" } },
+        { data: { ...graph.edges[0].data, id: "round-two" } }
+      ],
+      pulses: [
+        { ...graph.pulses[0], relationshipId: "round-two", roundIndex: 2 },
+        { ...graph.pulses[0], relationshipId: "supplier-customer", roundIndex: 0 },
+        { ...graph.pulses[0], relationshipId: "round-zero-b", roundIndex: 0 }
+      ]
+    };
+    render(<NetworkMap graph={unsortedGraph} replayToken={0} onSelectNode={vi.fn()} />);
+    const cy = captured.instances[0];
+
+    act(() => vi.advanceTimersByTime(0));
+    expect(cy.getElementById("supplier-customer").hasClass("pulse")).toBe(true);
+    expect(cy.getElementById("round-zero-b").hasClass("pulse")).toBe(false);
+    expect(cy.getElementById("round-two").hasClass("pulse")).toBe(false);
+
+    act(() => vi.advanceTimersByTime(420));
+    expect(cy.getElementById("round-zero-b").hasClass("pulse")).toBe(true);
+    expect(cy.getElementById("round-two").hasClass("pulse")).toBe(false);
+  });
+
   it("clears an active pulse before restarting replay", () => {
     vi.useFakeTimers();
     const onSelectNode = vi.fn();

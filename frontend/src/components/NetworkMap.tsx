@@ -89,7 +89,12 @@ export function NetworkMap({ graph, replayToken, onSelectNode }: Props) {
     if (!cy) return;
 
     const timeouts: number[] = [];
-    graph.pulses.forEach((pulse, index) => {
+    const scheduledPulses = graph.pulses
+      .map((pulse, payloadIndex) => ({ pulse, payloadIndex }))
+      .sort((left, right) =>
+        left.pulse.roundIndex - right.pulse.roundIndex || left.payloadIndex - right.payloadIndex
+      );
+    scheduledPulses.forEach(({ pulse }, index) => {
       timeouts.push(window.setTimeout(() => {
         const edge = cy.getElementById(pulse.relationshipId);
         edge.addClass("pulse");

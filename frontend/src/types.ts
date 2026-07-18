@@ -35,7 +35,7 @@ export interface GraphPayload {
   edges: GraphEdge[];
   pulses: EdgePulse[];
   summary: {
-    scenarioLanguage: string;
+    scenarioLanguage: "estimated impact under scenario";
     totalRevenueLost: number;
     stressedCompanyCount: number;
   };

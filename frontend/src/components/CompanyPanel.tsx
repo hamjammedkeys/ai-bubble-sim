@@ -1,14 +1,35 @@
 import type { GraphNode } from "../types";
 
 interface Props {
+  nodes: GraphNode[];
   node: GraphNode | null;
+  onSelectNode: (node: GraphNode | null) => void;
 }
 
-export function CompanyPanel({ node }: Props) {
+export function CompanyPanel({ nodes, node, onSelectNode }: Props) {
+  const selector = (
+    <label>
+      Inspect company
+      <select
+        value={node?.data.id ?? ""}
+        onChange={(event) => {
+          const id = event.target.value;
+          onSelectNode(nodes.find((candidate) => candidate.data.id === id) ?? null);
+        }}
+      >
+        <option value="">None selected</option>
+        {nodes.map((candidate) => (
+          <option key={candidate.data.id} value={candidate.data.id}>{candidate.data.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+
   if (!node) {
     return (
       <section className="panel">
         <h2>Company</h2>
+        {selector}
         <p>Select a node to inspect estimated impact and source basis.</p>
       </section>
     );
@@ -17,6 +38,7 @@ export function CompanyPanel({ node }: Props) {
   return (
     <section className="panel">
       <h2>{node.data.label}</h2>
+      {selector}
       <dl>
         <div>
           <dt>Status</dt>

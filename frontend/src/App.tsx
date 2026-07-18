@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { runCloudSlowdown } from "./api";
 import { CompanyPanel } from "./components/CompanyPanel";
 import { NetworkMap } from "./components/NetworkMap";
@@ -6,12 +6,14 @@ import { ResultsPanel } from "./components/ResultsPanel";
 import { ScenarioControls } from "./components/ScenarioControls";
 import type { GraphNode, GraphPayload } from "./types";
 
+export const SCENARIO_LANGUAGE = "estimated impact under scenario" as const;
+
 const initialGraph: GraphPayload = {
   nodes: [],
   edges: [],
   pulses: [],
   summary: {
-    scenarioLanguage: "estimated impact under scenario",
+    scenarioLanguage: SCENARIO_LANGUAGE,
     totalRevenueLost: 0,
     stressedCompanyCount: 0
   }
@@ -23,8 +25,10 @@ export default function App() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [replayToken, setReplayToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const requestSequence = useRef(0);
 
   const runScenario = useCallback(async () => {
+    const requestId = ++requestSequence.current;
     setError(null);
     try {
       const payload = await runCloudSlowdown({
@@ -33,10 +37,22 @@ export default function App() {
         propagation_factor: 0.5,
         max_rounds: 3
       });
-      setGraph(payload);
+      if (requestId !== requestSequence.current) return;
+      const safePayload: GraphPayload = {
+        ...payload,
+        summary: { ...payload.summary, scenarioLanguage: SCENARIO_LANGUAGE }
+      };
+      setGraph(safePayload);
+      setSelectedNode((selected) =>
+        selected
+          ? safePayload.nodes.find((node) => node.data.id === selected.data.id) ?? null
+          : null
+      );
       setReplayToken((value) => value + 1);
     } catch {
+      if (requestId !== requestSequence.current) return;
       setGraph(initialGraph);
+      setSelectedNode(null);
       setError("Unable to load scenario results.");
     }
   }, [shock]);
@@ -49,7 +65,7 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar">
         <h1>AI Fragility Map</h1>
-        <span>{graph.summary.scenarioLanguage}</span>
+        <span>{SCENARIO_LANGUAGE}</span>
       </header>
       <section className="workspace">
         <aside className="left-rail">
@@ -59,7 +75,7 @@ export default function App() {
         </aside>
         <NetworkMap graph={graph} replayToken={replayToken} onSelectNode={setSelectedNode} />
         <aside className="right-rail">
-          <CompanyPanel node={selectedNode} />
+          <CompanyPanel nodes={graph.nodes} node={selectedNode} onSelectNode={setSelectedNode} />
         </aside>
       </section>
     </main>
