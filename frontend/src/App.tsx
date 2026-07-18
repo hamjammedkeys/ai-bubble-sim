@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { runCloudSlowdown } from "./api";
 import { CompanyPanel } from "./components/CompanyPanel";
 import { NetworkMap } from "./components/NetworkMap";
+import { CreditEventResults } from "./components/CreditEventResults";
 import { ResultsPanel } from "./components/ResultsPanel";
+import { ReviewPanel } from "./components/ReviewPanel";
 import { ScenarioControls } from "./components/ScenarioControls";
+import { runCreditEvent, type CreditEventResult } from "./reviewApi";
 import type { GraphNode, GraphPayload } from "./types";
 
 export const SCENARIO_LANGUAGE = "estimated impact under scenario" as const;
@@ -25,7 +28,12 @@ export default function App() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [replayToken, setReplayToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [creditEvent, setCreditEvent] = useState<CreditEventResult | null>(null);
   const requestSequence = useRef(0);
+
+  const runEvent = useCallback(async () => {
+    setCreditEvent(await runCreditEvent());
+  }, []);
 
   const runScenario = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -72,6 +80,11 @@ export default function App() {
           <ScenarioControls shock={shock} onShockChange={setShock} onRun={runScenario} />
           {error && <p className="api-error" role="alert">{error}</p>}
           <ResultsPanel graph={graph} />
+          <button type="button" onClick={() => void runEvent()}>
+            Run OpenAI credit event
+          </button>
+          {creditEvent && <CreditEventResults result={creditEvent} />}
+          <ReviewPanel onDecision={() => void runEvent()} />
         </aside>
         <NetworkMap graph={graph} replayToken={replayToken} onSelectNode={setSelectedNode} />
         <aside className="right-rail">

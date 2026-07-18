@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from fragility_map.api.review import router as review_router
+from fragility_map.api.scenario import router as scenario_router
 from fragility_map.model.graph_export import build_graph_payload
 from fragility_map.model.stress import (
     CompanyFinancials,
@@ -10,6 +12,8 @@ from fragility_map.model.stress import (
 )
 
 app = FastAPI(title="AI Fragility Map API")
+app.include_router(review_router)
+app.include_router(scenario_router)
 
 
 class ScenarioRequest(BaseModel):
