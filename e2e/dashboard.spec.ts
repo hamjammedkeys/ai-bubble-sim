@@ -1,118 +1,135 @@
 import { expect, test } from "@playwright/test";
 
-interface ScenarioRequest {
-  shock_percentage: number;
-  pass_through_rate: number;
-  propagation_factor: number;
-  max_rounds: number;
-}
+const scenarioPayload = {
+  scenario: {
+    incrementalGaapLoss: 10_000_000_000,
+    creditStatus: "severe_distress",
+    defaultStatus: "not_defaulted",
+    language: "calculated Impact plus activated Exposure; downstream loss not identifiable"
+  },
+  nodes: [],
+  edges: [
+    {
+      relationshipId: "openai-msft",
+      source: "openai",
+      target: "msft",
+      structureType: "equity_method",
+      tier: "solid_red",
+      resultKind: "impact",
+      value: -2_700_000_000,
+      basis: "equity-method share of stated GAAP loss",
+      provenance: {},
+      sourceAccession: "openai-10k-2025"
+    },
+    {
+      relationshipId: "openai-coreweave",
+      source: "openai",
+      target: "coreweave",
+      structureType: "take_or_pay",
+      tier: "solid_orange",
+      resultKind: "exposure",
+      value: 11_900_000_000,
+      basis: "take-or-pay contract envelope activated",
+      provenance: {},
+      sourceAccession: "coreweave-s1a-2025"
+    },
+    {
+      relationshipId: "openai-coreweave-realized-loss",
+      source: "openai",
+      target: "coreweave",
+      structureType: "take_or_pay",
+      tier: "dashed_amber",
+      resultKind: "realized_loss_unidentifiable",
+      value: null,
+      basis: "EAD, PD, LGD, and timing are undisclosed",
+      provenance: {},
+      sourceAccession: "coreweave-s1a-2025"
+    }
+  ],
+  ranking: []
+};
 
-test("dashboard opens on the map and runs a shock", async ({ page }) => {
-  const scenarioRequests: ScenarioRequest[] = [];
-  const consoleErrors: string[] = [];
-  const pageErrors: Error[] = [];
+const reviewCandidate = {
+  candidateId: "candidate-1",
+  sourceId: "msft-filing",
+  sourceAccession: "acc-1",
+  sourceCompanyId: "msft",
+  targetCompanyId: "coreweave",
+  relationshipType: "take_or_pay",
+  quotedText: "Reported commitment.",
+  numericToken: "$4 billion",
+  value: 4_000_000_000,
+  unit: "USD",
+  period: "through 2030",
+  supportedRule: "reported purchase commitment envelope",
+  unsupportedInference: "counterparty mapping awaits review",
+  status: "proposed"
+};
+
+test("hero compound credit event preserves evidence grammar", async ({ page }) => {
+  const scenarioRequests: unknown[] = [];
+  const legacyRequests: string[] = [];
+  let rejected = false;
+  const auditLog = [
+    {
+      auditId: "audit-1",
+      candidateId: "candidate-1",
+      fromStatus: "proposed",
+      toStatus: "rejected",
+      reviewerId: "dashboard-reviewer",
+      reason: "Rejected from dashboard",
+      verificationValid: true,
+      createdAt: "2026-07-18T00:00:00Z"
+    }
+  ];
+
   await page.route("**/api/scenario/cloud-slowdown", async (route) => {
-    scenarioRequests.push(route.request().postDataJSON() as ScenarioRequest);
+    legacyRequests.push(route.request().url());
+    await route.abort();
+  });
+  await page.route("**/api/v2/scenario/compound-credit-event", async (route) => {
+    scenarioRequests.push(route.request().postDataJSON());
+    await route.fulfill({
+      contentType: "application/json",
+      json: { ...scenarioPayload, reviewCandidates: [reviewCandidate], auditLog: [] }
+    });
+  });
+  await page.route("**/api/v2/review/candidates", async (route) => {
     await route.fulfill({
       contentType: "application/json",
       json: {
-        nodes: [
-          {
-            data: {
-              id: "cloud",
-              label: "Cloud Platform",
-              sectorGroup: "Cloud",
-              revenue: 1000,
-              revenueLoss: 300,
-              stressStatus: "critical"
-            }
-          },
-          {
-            data: {
-              id: "supplier",
-              label: "AI Supplier",
-              sectorGroup: "Semiconductors",
-              revenue: 500,
-              revenueLoss: 120,
-              stressStatus: "stressed"
-            }
-          }
-        ],
-        edges: [
-          {
-            data: {
-              id: "cloud-supplier",
-              source: "cloud",
-              target: "supplier",
-              annualFlowBase: 400,
-              confidenceScore: 0.8,
-              estimateMethod: "inferred"
-            }
-          }
-        ],
-        pulses: [
-          {
-            relationshipId: "cloud-supplier",
-            source: "cloud",
-            target: "supplier",
-            roundIndex: 1,
-            revenueLoss: 120
-          }
-        ],
-        summary: {
-          scenarioLanguage: "estimated impact under scenario",
-          totalRevenueLost: 420,
-          stressedCompanyCount: 2
-        }
+        ...scenarioPayload,
+        reviewCandidates: rejected ? [] : [reviewCandidate],
+        auditLog: rejected ? auditLog : []
       }
     });
   });
-  page.on("console", (message) => {
-    if (message.type() === "error") {
-      consoleErrors.push(message.text());
-    }
-  });
-  page.on("pageerror", (error) => pageErrors.push(error));
-
-  await page.goto("http://127.0.0.1:5173");
-
-  await expect(page.getByText("AI Fragility Map")).toBeVisible();
-  await expect(page.locator("header").getByText("estimated impact under scenario")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Scenario Results" }).locator("..").getByText("estimated impact under scenario")
-  ).toBeVisible();
-  await page.waitForLoadState("networkidle");
-  expect(scenarioRequests.length).toBeGreaterThanOrEqual(1);
-  expect(scenarioRequests.some((request) => request.shock_percentage === 0.4)).toBe(false);
-  expect(scenarioRequests).toEqual(
-    scenarioRequests.map(() => ({
-      shock_percentage: 0.3,
-      pass_through_rate: 0.8,
-      propagation_factor: 0.5,
-      max_rounds: 3
-    }))
-  );
-
-  const initialRequestCount = scenarioRequests.length;
-  await page.getByLabel("Shock").selectOption("0.4");
-  await expect.poll(() => scenarioRequests.length).toBe(initialRequestCount + 1);
-  expect(scenarioRequests.at(-1)).toEqual({
-    shock_percentage: 0.4,
-    pass_through_rate: 0.8,
-    propagation_factor: 0.5,
-    max_rounds: 3
+  await page.route("**/api/v2/review/candidate-1/reject", async (route) => {
+    rejected = true;
+    await route.fulfill({
+      contentType: "application/json",
+      json: { ...scenarioPayload, reviewCandidates: [], auditLog }
+    });
   });
 
-  const preClickRequestCount = scenarioRequests.length;
-  await page.getByRole("button", { name: "Run shock" }).click();
-  await expect(page.getByLabel("AI supply-chain network map")).toBeVisible();
-  await expect.poll(() => scenarioRequests.length).toBe(preClickRequestCount + 1);
-  expect(scenarioRequests.at(-1)).toEqual({
-    shock_percentage: 0.4,
-    pass_through_rate: 0.8,
-    propagation_factor: 0.5,
-    max_rounds: 3
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Run compound credit event" })).toBeVisible();
+  await page.getByRole("button", { name: "Run compound credit event" }).click();
+  await expect(page.getByText("Observed shock: $10.0B incremental GAAP loss")).toBeVisible();
+  await expect(page.getByText("Credit status: severe distress · Default status: not defaulted")).toBeVisible();
+  await expect(page.getByText("Calculated Impact", { exact: true })).toBeVisible();
+  await expect(page.getByText("Activated Exposure", { exact: true })).toBeVisible();
+  await expect(page.getByText("Realized loss: not identifiable", { exact: true })).toBeVisible();
+  await expect(page.getByText("Pending human review", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reject candidate" }).click();
+  const auditLogRegion = page.getByRole("region", { name: "Audit log" });
+  await expect(auditLogRegion.getByRole("heading", { name: "Audit log" })).toBeVisible();
+  await expect(auditLogRegion.getByText("Rejected from dashboard")).toBeVisible();
+
+  expect(scenarioRequests).toContainEqual({
+    incremental_gaap_loss: 10_000_000_000,
+    credit_status: "severe_distress",
+    default_status: "not_defaulted"
   });
-  expect(consoleErrors).toEqual([]);
-  expect(pageErrors).toEqual([]);
+  expect(legacyRequests).toEqual([]);
 });

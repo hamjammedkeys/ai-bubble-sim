@@ -73,6 +73,18 @@ export function ResultsPanel({ evidence, onReviewDecision, reviewBusy }: Props) 
           </div>
         </article>
       ))}
+      {evidence.auditLog.length > 0 && (
+        <section className="audit-log" aria-label="Audit log">
+          <h3>Audit log</h3>
+          <ul>
+            {evidence.auditLog.map((entry) => (
+              <li key={entry.auditId}>
+                <strong>{entry.toStatus}</strong>: {entry.reason}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </section>
   );
 }

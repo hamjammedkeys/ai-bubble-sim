@@ -7,8 +7,8 @@ import {
 import { CompanyPanel } from "./components/CompanyPanel";
 import { NetworkMap } from "./components/NetworkMap";
 import { ResultsPanel } from "./components/ResultsPanel";
-import { ScenarioControls } from "./components/ScenarioControls";
 import type {
+  CompoundCreditEventRequest,
   EvidenceNode,
   EvidencePayload,
   ReviewAction
@@ -16,6 +16,12 @@ import type {
 
 export const SCENARIO_LANGUAGE =
   "calculated Impact plus activated Exposure; downstream loss not identifiable";
+
+const HERO_EVENT: CompoundCreditEventRequest = {
+  incrementalGaapLoss: 10_000_000_000,
+  creditStatus: "severe_distress",
+  defaultStatus: "not_defaulted"
+};
 
 const initialEvidence: EvidencePayload = {
   scenario: {
@@ -33,7 +39,6 @@ const initialEvidence: EvidencePayload = {
 
 export default function App() {
   const [evidence, setEvidence] = useState<EvidencePayload>(initialEvidence);
-  const [shock, setShock] = useState(0.1);
   const [selectedNode, setSelectedNode] = useState<EvidenceNode | null>(null);
   const [replayToken, setReplayToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -46,11 +51,7 @@ export default function App() {
     setError(null);
     try {
       const [scenarioPayload, reviewPayload] = await Promise.all([
-        runCompoundCreditEvent({
-          incrementalGaapLoss: Math.round(shock * 100_000_000_000),
-          creditStatus: "severe_distress",
-          defaultStatus: "not_defaulted"
-        }),
+        runCompoundCreditEvent(HERO_EVENT),
         listReviewCandidates()
       ]);
       if (requestId !== requestSequence.current) return;
@@ -72,7 +73,7 @@ export default function App() {
       setSelectedNode(null);
       setError("Unable to load compound-credit-event evidence.");
     }
-  }, [shock]);
+  }, []);
 
   const submitDecision = useCallback(async (candidateId: string, action: ReviewAction) => {
     setReviewBusy(true);
@@ -104,7 +105,12 @@ export default function App() {
       </header>
       <section className="workspace">
         <aside className="left-rail">
-          <ScenarioControls shock={shock} onShockChange={setShock} onRun={runScenario} />
+          <section className="panel controls">
+            <h2>Compound credit event</h2>
+            <p className="observed-shock">Observed shock: $10.0B incremental GAAP loss</p>
+            <p className="assumption">Credit status: severe distress · Default status: not defaulted</p>
+            <button type="button" onClick={runScenario}>Run compound credit event</button>
+          </section>
           {error && <p className="api-error" role="alert">{error}</p>}
           {reviewNotice && <p className="review-notice" role="status">{reviewNotice}</p>}
           <ResultsPanel

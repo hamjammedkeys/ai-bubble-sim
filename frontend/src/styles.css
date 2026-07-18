@@ -123,6 +123,13 @@ select {
   font-size: 13px;
 }
 
+.observed-shock {
+  margin: 0 0 8px;
+  color: #102033;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .api-error {
   margin: -6px 0 0;
   padding: 8px 10px;
@@ -250,6 +257,26 @@ dd {
 .review-actions button:disabled {
   cursor: wait;
   opacity: 0.6;
+}
+
+.audit-log {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #d9e2eb;
+}
+
+.audit-log h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.audit-log ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: #455a70;
+  font-size: 12px;
 }
 
 @media (max-width: 980px) {
