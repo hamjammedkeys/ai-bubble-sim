@@ -70,6 +70,9 @@ def run_compound_shock(
     for rel in relationships:
         if rel.source_company_id != shock.source_company_id:
             continue
+        if rel.structure_type == StructureType.CUSTOMER_CONCENTRATION:
+            # Guardrail (ADR 0004): concentration only quantifies under an edge-flow shock.
+            continue
         if rel.structure_type == StructureType.BEHAVIOURAL or not quantifies_propagation(
             rel.provenance
         ):
@@ -157,4 +160,38 @@ def run_compound_shock(
                 ),
             )
 
+    return ShockResult(edges=edges, nodes=nodes)
+
+
+def run_edge_flow_shock(
+    relationships: list[StructuralRelationship],
+    shock: EdgeFlowShock,
+) -> ShockResult:
+    edges: list[EdgeResult] = []
+    nodes: dict[str, NodeResult] = {}
+    for rel in relationships:
+        if rel.relationship_id != shock.relationship_id:
+            continue
+        if rel.structure_type != StructureType.CUSTOMER_CONCENTRATION:
+            continue
+        if rel.concentration is None or not quantifies_propagation(rel.provenance):
+            continue
+        value = round(rel.concentration * shock.flow_change, 6)
+        edges.append(
+            EdgeResult(
+                rel.relationship_id,
+                rel.source_company_id,
+                rel.target_company_id,
+                Tier.SOLID_ORANGE,
+                "exposure",
+                value,
+                "disclosed customer-concentration exposure to an edge-flow change",
+            )
+        )
+        nodes[rel.target_company_id] = NodeResult(
+            rel.target_company_id,
+            quantified_impact=None,
+            activated_exposure=value,
+            epistemic_state="exposure_detected",
+        )
     return ShockResult(edges=edges, nodes=nodes)

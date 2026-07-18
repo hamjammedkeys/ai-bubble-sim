@@ -6,9 +6,11 @@ from fragility_map.model.evidence import (
     quantifies_propagation,
 )
 from fragility_map.model.propagation import (
+    EdgeFlowShock,
     Shock,
     StructuralRelationship,
     run_compound_shock,
+    run_edge_flow_shock,
 )
 from fragility_map.model.stress import (
     CompanyFinancials,
@@ -393,3 +395,116 @@ def test_unconstrained_structural_edge_dissolves_without_overwriting_impact() ->
     assert result.edges[1].value is None
     assert result.nodes["msft"].quantified_impact == -100
     assert result.nodes["msft"].epistemic_state == "quantified_impact"
+
+
+def _concentration_provenance() -> EdgeProvenance:
+    return EdgeProvenance(
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.CALCULATED,
+        ProvenanceLabel.CONSTRAINED,
+    )
+
+
+def test_concentration_edge_is_solid_only_under_edge_flow_shock() -> None:
+    rel = StructuralRelationship(
+        "msft-coreweave",
+        "msft",
+        "coreweave",
+        StructureType.CUSTOMER_CONCENTRATION,
+        _concentration_provenance(),
+        concentration=0.62,
+    )
+
+    result = run_edge_flow_shock(
+        [rel], EdgeFlowShock("msft-coreweave", flow_change=-0.2000009)
+    )
+
+    edge = result.edges[0]
+    assert edge.tier == Tier.SOLID_ORANGE
+    assert edge.result_kind == "exposure"
+    assert edge.value == -0.124001
+    assert result.nodes["coreweave"].activated_exposure == -0.124001
+
+
+def test_aggregate_shock_never_produces_a_concentration_result() -> None:
+    relationships = [
+        StructuralRelationship(
+            "msft-coreweave-quantified",
+            "msft",
+            "coreweave",
+            StructureType.CUSTOMER_CONCENTRATION,
+            _concentration_provenance(),
+            concentration=0.62,
+        ),
+        StructuralRelationship(
+            "msft-coreweave-unconstrained",
+            "msft",
+            "coreweave",
+            StructureType.CUSTOMER_CONCENTRATION,
+            _behavioural_provenance(),
+            concentration=0.62,
+        ),
+    ]
+
+    result = run_compound_shock(
+        relationships, Shock("msft", incremental_gaap_loss=10_000)
+    )
+
+    assert result.edges == []
+    assert result.nodes == {}
+
+
+def test_edge_flow_shock_only_quantifies_its_named_concentration_edge() -> None:
+    relationships = [
+        StructuralRelationship(
+            "other-concentration",
+            "msft",
+            "other",
+            StructureType.CUSTOMER_CONCENTRATION,
+            _concentration_provenance(),
+            concentration=0.5,
+        ),
+        StructuralRelationship(
+            "named-equity",
+            "msft",
+            "coreweave",
+            StructureType.EQUITY_METHOD,
+            _concentration_provenance(),
+            concentration=0.62,
+        ),
+    ]
+
+    result = run_edge_flow_shock(
+        relationships, EdgeFlowShock("named-equity", flow_change=-0.20)
+    )
+
+    assert result.edges == []
+    assert result.nodes == {}
+
+
+def test_edge_flow_shock_rejects_missing_or_non_quantifying_concentration() -> None:
+    relationships = [
+        StructuralRelationship(
+            "missing",
+            "msft",
+            "coreweave",
+            StructureType.CUSTOMER_CONCENTRATION,
+            _concentration_provenance(),
+        ),
+        StructuralRelationship(
+            "unconstrained",
+            "msft",
+            "coreweave",
+            StructureType.CUSTOMER_CONCENTRATION,
+            _behavioural_provenance(),
+            concentration=0.62,
+        ),
+    ]
+
+    for relationship_id in ("missing", "unconstrained"):
+        result = run_edge_flow_shock(
+            relationships, EdgeFlowShock(relationship_id, flow_change=-0.20)
+        )
+        assert result.edges == []
+        assert result.nodes == {}
