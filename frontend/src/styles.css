@@ -324,3 +324,25 @@ dd {
     order: 1;
   }
 }
+
+.candidate-card {
+  border-left: 4px solid #2f6df6;
+  background: repeating-linear-gradient(
+    -45deg, rgba(47, 109, 246, 0.06), rgba(47, 109, 246, 0.06) 8px,
+    transparent 8px, transparent 16px
+  );
+  padding: 8px 10px;
+  margin-top: 8px;
+}
+.evidence-quote { background: #fff2a8; }
+.check-list { list-style: none; padding: 0; font-size: 12px; }
+.check-list li[data-passed="false"] { color: #b72d3a; }
+.semantic-pending { font-size: 12px; color: #6b5b00; }
+.decision-row { display: flex; gap: 8px; }
+
+.tier-solid_red { border-left: 4px solid #b72d3a; padding-left: 8px; }
+.tier-solid_orange { border-left: 4px solid #d66a2a; padding-left: 8px; }
+.tier-dashed_amber { border-left: 4px dashed #e0a423; padding-left: 8px; }
+.tier-diffuse_amber { border-left: 4px dotted #e0a423; padding-left: 8px; opacity: 0.8; }
+.credit-event-results ul { list-style: none; padding: 0; }
+.credit-event-results li { margin: 6px 0; }

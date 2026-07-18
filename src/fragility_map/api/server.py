@@ -7,6 +7,8 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from fragility_map.api.review import router as review_router
+from fragility_map.api.scenario import router as scenario_router
 from fragility_map.api.v2_payload import build_evidence_payload
 from fragility_map.db.repository import FragilityRepository
 from fragility_map.extraction.candidates import CandidateStatus, RelationshipCandidateV2
@@ -30,6 +32,8 @@ from fragility_map.seed.hero import hero_companies, hero_relationships, hero_sho
 from fragility_map.settings import get_paths
 
 app = FastAPI(title="AI Fragility Map API")
+app.include_router(review_router)
+app.include_router(scenario_router)
 
 
 _PENDING_REVIEW_SOURCE_ID = "coreweave-424b4-2025-03-31"
