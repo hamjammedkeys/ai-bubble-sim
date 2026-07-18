@@ -1,8 +1,13 @@
 from fragility_map.model.evidence import (
     EdgeProvenance,
     ProvenanceLabel,
+    StructureType,
     Tier,
     quantifies_propagation,
+)
+from fragility_map.model.propagation import (
+    Shock,
+    StructuralRelationship,
 )
 from fragility_map.model.stress import (
     CompanyFinancials,
@@ -70,3 +75,35 @@ def test_tier_values_are_the_four_canonical_strings() -> None:
         "dashed_amber",
         "diffuse_amber",
     }
+
+
+def test_shock_defaults_are_normal_and_not_defaulted() -> None:
+    shock = Shock("openai", incremental_gaap_loss=10_000)
+    assert shock.credit_status == "normal"
+    assert shock.default_status == "not_defaulted"
+
+
+def test_structural_relationship_holds_only_disclosed_parameters() -> None:
+    rel = StructuralRelationship(
+        "openai-msft",
+        "openai",
+        "msft",
+        StructureType.EQUITY_METHOD,
+        _reported_provenance(),
+        ownership_share=0.27,
+        source_accession="msft-10k-2025",
+    )
+    assert rel.ownership_share == 0.27
+    assert rel.concentration is None
+    assert rel.committed_envelope is None
+
+
+def _reported_provenance():
+    from fragility_map.model.evidence import EdgeProvenance, ProvenanceLabel
+
+    return EdgeProvenance(
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.CALCULATED,
+        ProvenanceLabel.REPORTED,
+    )
