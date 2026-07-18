@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import App from "../src/App";
+import { CompanyPanel } from "../src/components/CompanyPanel";
 
 const graphResponse = {
   nodes: [],
@@ -33,6 +34,7 @@ describe("App", () => {
     expect(screen.getByText("Cloud AI Spending Slowdown")).toBeTruthy();
     expect(screen.getByText("Scenario Results")).toBeTruthy();
     expect(screen.getByText("Company")).toBeTruthy();
+    expect(within(screen.getByText("Total revenue lost").parentElement!).getByText("inferred")).toBeTruthy();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -50,5 +52,26 @@ describe("App", () => {
     expect(screen.getAllByText("estimated impact under scenario")).toHaveLength(2);
     expect(screen.getByText("$0M")).toBeTruthy();
     expect(screen.getByText("0")).toBeTruthy();
+  });
+});
+
+describe("CompanyPanel", () => {
+  it("labels selected-company revenue loss as inferred", () => {
+    render(
+      <CompanyPanel
+        node={{
+          data: {
+            id: "company-1",
+            label: "Example Company",
+            sectorGroup: "Cloud",
+            revenue: 100,
+            revenueLoss: 12,
+            stressStatus: "stressed"
+          }
+        }}
+      />
+    );
+
+    expect(within(screen.getByText("Revenue loss").parentElement!).getByText("inferred")).toBeTruthy();
   });
 });

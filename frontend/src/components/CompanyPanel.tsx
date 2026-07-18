@@ -24,7 +24,10 @@ export function CompanyPanel({ node }: Props) {
         </div>
         <div>
           <dt>Revenue loss</dt>
-          <dd>${Math.round(node.data.revenueLoss).toLocaleString()}M</dd>
+          <dd>
+            ${Math.round(node.data.revenueLoss).toLocaleString()}M
+            <span className="estimate-basis">inferred</span>
+          </dd>
         </div>
       </dl>
       <p className="assumption">Estimate label and evidence snippets attach here as extraction coverage grows.</p>

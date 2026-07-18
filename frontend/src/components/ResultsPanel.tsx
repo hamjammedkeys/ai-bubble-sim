@@ -12,7 +12,10 @@ export function ResultsPanel({ graph }: Props) {
       <dl>
         <div>
           <dt>Total revenue lost</dt>
-          <dd>${Math.round(graph.summary.totalRevenueLost).toLocaleString()}M</dd>
+          <dd>
+            ${Math.round(graph.summary.totalRevenueLost).toLocaleString()}M
+            <span className="estimate-basis">inferred</span>
+          </dd>
         </div>
         <div>
           <dt>Stressed companies</dt>

@@ -134,6 +134,17 @@ dd {
   font-weight: 700;
 }
 
+.estimate-basis {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid #c9d4df;
+  border-radius: 999px;
+  color: #5f7187;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 @media (max-width: 980px) {
   .workspace {
     grid-template-columns: 1fr;
