@@ -1,0 +1,7 @@
+{
+  "candidate_id": "cand-1",
+  "relationship_type": "take_or_pay",
+  "quoted_text": "Microsoft has purchase commitments of $4 billion through 2030 with CoreWeave.",
+  "unsupported_inference": "CoreWeave is the named counterparty",
+  "expected_rejection_reason": "general portfolio language does not identify CoreWeave"
+}

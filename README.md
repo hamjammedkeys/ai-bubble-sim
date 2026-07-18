@@ -1,5 +1,11 @@
 # AI Fragility Map
 
+## Review-gated extraction
+
+Live filing extraction produces typed, cited proposals that remain blue-striped and
+`pending_human_review` after mechanical checks. Code verifies evidence tokens; a human
+must approve, edit, or reject the candidate, and every decision is recorded in an audit log.
+
 AI Fragility Map is a data-first polished demo that shows estimated ripple effects from a cloud/platform AI infrastructure spending slowdown.
 
 ## Backend

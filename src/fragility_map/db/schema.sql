@@ -69,3 +69,24 @@ CREATE TABLE IF NOT EXISTS scenario_runs (
     per_company_impacts TEXT NOT NULL,
     per_edge_pulses TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS relationship_candidates (
+    candidate_id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    candidate_json TEXT NOT NULL,
+    verification_json TEXT NOT NULL,
+    mechanically_valid BOOLEAN NOT NULL,
+    saved_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS candidate_audit_log (
+    audit_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    reviewer_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    verification_valid BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
