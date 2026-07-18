@@ -6,6 +6,7 @@ from fragility_map.extraction.candidates import (
     propose_candidates,
 )
 from fragility_map.extraction.lifecycle import CandidateLifecycle, promote_approved
+from fragility_map.extraction.proposers import KeywordProposer
 from fragility_map.extraction.relationships import (
     estimate_confidence,
     extract_relationship_candidates,
@@ -158,3 +159,24 @@ def test_signature_integrity_rejects_generic_portfolio_language() -> None:
     assert lifecycle.audit_log()[-1].reason == (
         "general portfolio language does not identify CoreWeave"
     )
+
+
+def test_keyword_proposer_extracts_take_or_pay_and_concentration() -> None:
+    text = Path("tests/fixtures/coreweave_s1a_excerpt.txt").read_text(encoding="utf-8")
+    proposer = KeywordProposer(
+        source_accession="0001640147-25-000001",
+        source_company_id="openai",
+        target_company_id="coreweave",
+    )
+    candidates = proposer.propose("coreweave-s1a", text)
+    by_type = {c.relationship_type: c for c in candidates}
+
+    top = by_type["take_or_pay"]
+    assert top.value == 11_900
+    assert top.unit == "USD"
+    assert top.quoted_text in text
+    assert top.status is CandidateStatus.PROPOSED
+
+    conc = by_type["customer_concentration"]
+    assert conc.value == 0.62
+    assert conc.quoted_text == "Microsoft accounted for 62% of our revenue in 2024."
