@@ -5,6 +5,7 @@ from typing import Any
 import duckdb
 
 from fragility_map.ingestion.companies import CompanyConfig
+from fragility_map.ingestion.official_pdfs import SourceRecord
 
 
 class FragilityRepository:
@@ -50,3 +51,30 @@ class FragilityRepository:
             }
             for row in rows
         ]
+
+    def upsert_sources(self, sources: Sequence[SourceRecord]) -> None:
+        with self.connect() as connection:
+            connection.executemany(
+                """
+                INSERT OR REPLACE INTO sources
+                (
+                    source_id, company_id, source_type, source_date, url,
+                    local_path, extraction_status, retrieved_at, error_message
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        s.source_id,
+                        s.company_id,
+                        s.source_type,
+                        s.source_date,
+                        str(s.url),
+                        s.local_path,
+                        s.extraction_status,
+                        s.retrieved_at,
+                        s.error_message,
+                    )
+                    for s in sources
+                ],
+            )
