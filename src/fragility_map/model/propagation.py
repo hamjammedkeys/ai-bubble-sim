@@ -195,3 +195,14 @@ def run_edge_flow_shock(
             epistemic_state="exposure_detected",
         )
     return ShockResult(edges=edges, nodes=nodes)
+
+
+def rank_vulnerability(result: ShockResult) -> list[tuple[str, float]]:
+    ranked = [
+        (node.company_id, abs(node.quantified_impact))
+        for node in result.nodes.values()
+        if node.epistemic_state == "quantified_impact"
+        and node.quantified_impact is not None
+    ]
+    ranked.sort(key=lambda pair: pair[1], reverse=True)
+    return ranked

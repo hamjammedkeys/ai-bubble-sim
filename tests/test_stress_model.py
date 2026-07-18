@@ -7,8 +7,11 @@ from fragility_map.model.evidence import (
 )
 from fragility_map.model.propagation import (
     EdgeFlowShock,
+    NodeResult,
     Shock,
+    ShockResult,
     StructuralRelationship,
+    rank_vulnerability,
     run_compound_shock,
     run_edge_flow_shock,
 )
@@ -508,3 +511,63 @@ def test_edge_flow_shock_rejects_missing_or_non_quantifying_concentration() -> N
         )
         assert result.edges == []
         assert result.nodes == {}
+
+
+def test_ranking_excludes_exposure_and_unidentifiable_nodes() -> None:
+    result = ShockResult(
+        edges=[],
+        nodes={
+            "msft": NodeResult("msft", quantified_impact=-2_700.0, activated_exposure=None,
+                               epistemic_state="quantified_impact"),
+            "coreweave": NodeResult("coreweave", quantified_impact=None,
+                                    activated_exposure=11_900, epistemic_state="exposure_detected"),
+            "nvda": NodeResult("nvda", quantified_impact=None, activated_exposure=None,
+                               epistemic_state="not_identifiable"),
+        },
+    )
+
+    ranking = rank_vulnerability(result)
+
+    assert ranking == [("msft", 2_700.0)]
+
+
+def test_ranking_sorts_absolute_magnitudes_and_includes_zero() -> None:
+    result = ShockResult(
+        edges=[],
+        nodes={
+            "zero": NodeResult("zero", 0.0, None, "quantified_impact"),
+            "gain": NodeResult("gain", 12.0, None, "quantified_impact"),
+            "loss": NodeResult("loss", -30.0, None, "quantified_impact"),
+        },
+    )
+
+    assert rank_vulnerability(result) == [
+        ("loss", 30.0),
+        ("gain", 12.0),
+        ("zero", 0.0),
+    ]
+
+
+def test_ranking_preserves_node_order_for_equal_magnitudes() -> None:
+    result = ShockResult(
+        edges=[],
+        nodes={
+            "first": NodeResult("first", -10.0, None, "quantified_impact"),
+            "second": NodeResult("second", 10.0, None, "quantified_impact"),
+        },
+    )
+
+    assert rank_vulnerability(result) == [("first", 10.0), ("second", 10.0)]
+
+
+def test_ranking_excludes_numeric_impacts_without_quantified_state() -> None:
+    result = ShockResult(
+        edges=[],
+        nodes={
+            "exposure": NodeResult("exposure", -50.0, 100.0, "exposure_detected"),
+            "unknown": NodeResult("unknown", 40.0, None, "not_identifiable"),
+            "unaffected": NodeResult("unaffected", 0.0, None, "unaffected"),
+        },
+    )
+
+    assert rank_vulnerability(result) == []
