@@ -1,9 +1,14 @@
-import type { GraphNode } from "../types";
+import type { EvidenceNode } from "../types";
 
 interface Props {
-  nodes: GraphNode[];
-  node: GraphNode | null;
-  onSelectNode: (node: GraphNode | null) => void;
+  nodes: EvidenceNode[];
+  node: EvidenceNode | null;
+  onSelectNode: (node: EvidenceNode | null) => void;
+}
+
+function formatMillions(value: number): string {
+  const prefix = value < 0 ? "-$" : "$";
+  return `${prefix}${Math.round(Math.abs(value) / 1_000_000).toLocaleString()}M`;
 }
 
 export function CompanyPanel({ nodes, node, onSelectNode }: Props) {
@@ -11,15 +16,15 @@ export function CompanyPanel({ nodes, node, onSelectNode }: Props) {
     <label>
       Inspect company
       <select
-        value={node?.data.id ?? ""}
+        value={node?.companyId ?? ""}
         onChange={(event) => {
           const id = event.target.value;
-          onSelectNode(nodes.find((candidate) => candidate.data.id === id) ?? null);
+          onSelectNode(nodes.find((candidate) => candidate.companyId === id) ?? null);
         }}
       >
         <option value="">None selected</option>
         {nodes.map((candidate) => (
-          <option key={candidate.data.id} value={candidate.data.id}>{candidate.data.label}</option>
+          <option key={candidate.companyId} value={candidate.companyId}>{candidate.label}</option>
         ))}
       </select>
     </label>
@@ -30,29 +35,39 @@ export function CompanyPanel({ nodes, node, onSelectNode }: Props) {
       <section className="panel">
         <h2>Company</h2>
         {selector}
-        <p>Select a node to inspect estimated impact and source basis.</p>
+        <p>Select a node to inspect its epistemic state and evidence basis.</p>
       </section>
     );
   }
 
   return (
     <section className="panel">
-      <h2>{node.data.label}</h2>
+      <h2>{node.label}</h2>
       {selector}
       <dl>
         <div>
-          <dt>Status</dt>
-          <dd>{node.data.stressStatus}</dd>
+          <dt>Epistemic state</dt>
+          <dd>{node.epistemicState}</dd>
         </div>
-        <div>
-          <dt>Revenue loss</dt>
-          <dd>
-            ${Math.round(node.data.revenueLoss).toLocaleString()}M
-            <span className="estimate-basis">inferred</span>
-          </dd>
-        </div>
+        {node.quantifiedImpact !== null && (
+          <div>
+            <dt>Calculated Impact</dt>
+            <dd>{formatMillions(node.quantifiedImpact)}</dd>
+          </div>
+        )}
+        {node.activatedExposure !== null && (
+          <div>
+            <dt>Activated Exposure</dt>
+            <dd>{formatMillions(node.activatedExposure)}</dd>
+          </div>
+        )}
+        {node.rankingEligible && (
+          <div className="ranking-control">
+            <dt>Ranking</dt>
+            <dd>Eligible for quantified-impact ranking</dd>
+          </div>
+        )}
       </dl>
-      <p className="assumption">Estimate label and evidence snippets attach here as extraction coverage grows.</p>
     </section>
   );
 }

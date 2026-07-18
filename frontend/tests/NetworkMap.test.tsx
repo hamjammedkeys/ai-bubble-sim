@@ -1,5 +1,5 @@
 import type { Core, CytoscapeOptions } from "cytoscape";
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const captured = vi.hoisted(() => ({
@@ -24,57 +24,31 @@ vi.mock("cytoscape", async (importOriginal) => {
 });
 
 import { NetworkMap } from "../src/components/NetworkMap";
-import type { GraphPayload } from "../src/types";
 
-const graph: GraphPayload = {
+const evidenceGraph = {
+  scenario: {
+    incrementalGaapLoss: 10_000_000_000,
+    creditStatus: "severe_distress",
+    defaultStatus: "not_defaulted",
+    language: "calculated Impact plus activated Exposure; downstream loss not identifiable"
+  },
   nodes: [
-    {
-      data: {
-        id: "supplier",
-        label: "Supplier",
-        sectorGroup: "Cloud",
-        revenue: 100,
-        revenueLoss: 10,
-        stressStatus: "stressed"
-      }
-    },
-    {
-      data: {
-        id: "customer",
-        label: "Customer",
-        sectorGroup: "Software",
-        revenue: 64,
-        revenueLoss: 4,
-        stressStatus: "exposed"
-      }
-    }
+    { companyId: "openai", label: "OpenAI", quantifiedImpact: null, activatedExposure: null, epistemicState: "source", rankingEligible: false, tierSummary: [] },
+    { companyId: "msft", label: "Microsoft", quantifiedImpact: -2_700_000_000, activatedExposure: null, epistemicState: "quantified_impact", rankingEligible: true, tierSummary: ["solid_red"] },
+    { companyId: "coreweave", label: "CoreWeave", quantifiedImpact: null, activatedExposure: 11_900_000_000, epistemicState: "exposure_detected", rankingEligible: false, tierSummary: ["solid_orange", "dashed_amber"] },
+    { companyId: "nvda", label: "NVIDIA", quantifiedImpact: null, activatedExposure: null, epistemicState: "not_identifiable", rankingEligible: false, tierSummary: ["diffuse_amber"] }
   ],
   edges: [
-    {
-      data: {
-        id: "supplier-customer",
-        source: "supplier",
-        target: "customer",
-        annualFlowBase: 20,
-        confidenceScore: 0.8,
-        estimateMethod: "inferred"
-      }
-    }
+    { relationshipId: "impact", source: "openai", target: "msft", structureType: "equity_method", tier: "solid_red", resultKind: "impact", value: -2_700_000_000, basis: "calculated", provenance: {}, sourceAccession: "acc-1" },
+    { relationshipId: "exposure", source: "openai", target: "coreweave", structureType: "take_or_pay", tier: "solid_orange", resultKind: "exposure", value: 11_900_000_000, basis: "reported", provenance: {}, sourceAccession: "acc-2" },
+    { relationshipId: "guardrail", source: "openai", target: "coreweave", structureType: "take_or_pay", tier: "dashed_amber", resultKind: "realized_loss_unidentifiable", value: null, basis: "not identifiable", provenance: {}, sourceAccession: "acc-2" },
+    { relationshipId: "dissolve", source: "coreweave", target: "nvda", structureType: "behavioural", tier: "diffuse_amber", resultKind: "behavioural", value: null, basis: "not identifiable", provenance: {}, sourceAccession: "acc-2" }
   ],
-  pulses: [
-    {
-      relationshipId: "supplier-customer",
-      source: "supplier",
-      target: "customer",
-      roundIndex: 0,
-      revenueLoss: 4
-    }
+  reviewCandidates: [
+    { candidateId: "candidate-1", sourceId: "acc-2", sourceAccession: "acc-2", sourceCompanyId: "msft", targetCompanyId: "coreweave", relationshipType: "take_or_pay", quotedText: "Proposal", numericToken: null, value: null, unit: null, period: null, supportedRule: "rule", unsupportedInference: "inference", status: "proposed" }
   ],
-  summary: {
-    scenarioLanguage: "estimated impact under scenario",
-    totalRevenueLost: 14,
-    stressedCompanyCount: 2
-  }
+  auditLog: [],
+  ranking: []
 };
 
 beforeEach(() => {
@@ -87,100 +61,27 @@ afterEach(() => {
 });
 
 describe("NetworkMap", () => {
-  it("loads graph elements into a real headless Cytoscape instance", () => {
-    render(<NetworkMap graph={graph} replayToken={0} onSelectNode={vi.fn()} />);
+  it("maps each evidence tier to a distinct Cytoscape visual style", () => {
+    render(<NetworkMap evidence={evidenceGraph as never} replayToken={0} onSelectNode={vi.fn()} />);
 
     const cy = captured.instances[0];
     expect(screen.getByLabelText("AI supply-chain network map")).toBeTruthy();
-    expect(captured.options[0].headless).toBe(true);
-    expect(captured.options[0].layout).toMatchObject({ name: "preset" });
-    expect(cy.nodes().map((node) => node.id())).toEqual(["supplier", "customer"]);
-    expect(cy.edges().map((edge) => edge.id())).toEqual(["supplier-customer"]);
-  });
-
-  it("selects a graph node and clears selection on a background tap", () => {
-    const onSelectNode = vi.fn();
-    render(<NetworkMap graph={graph} replayToken={0} onSelectNode={onSelectNode} />);
-    const cy = captured.instances[0];
-
-    cy.getElementById("supplier").emit("tap");
-    expect(onSelectNode).toHaveBeenLastCalledWith(graph.nodes[0]);
-
-    cy.emit("tap");
-    expect(onSelectNode).toHaveBeenLastCalledWith(null);
-  });
-
-  it("adds and removes the pulse class using the replay timers", () => {
-    vi.useFakeTimers();
-    render(<NetworkMap graph={graph} replayToken={0} onSelectNode={vi.fn()} />);
-    const edge = captured.instances[0].getElementById("supplier-customer");
-
-    act(() => vi.advanceTimersByTime(0));
-    expect(edge.hasClass("pulse")).toBe(true);
-
-    act(() => vi.advanceTimersByTime(650));
-    expect(edge.hasClass("pulse")).toBe(false);
-  });
-
-  it("schedules pulses by round while preserving payload order within a round", () => {
-    vi.useFakeTimers();
-    const unsortedGraph: GraphPayload = {
-      ...graph,
-      edges: [
-        ...graph.edges,
-        { data: { ...graph.edges[0].data, id: "round-zero-b" } },
-        { data: { ...graph.edges[0].data, id: "round-two" } }
-      ],
-      pulses: [
-        { ...graph.pulses[0], relationshipId: "round-two", roundIndex: 2 },
-        { ...graph.pulses[0], relationshipId: "supplier-customer", roundIndex: 0 },
-        { ...graph.pulses[0], relationshipId: "round-zero-b", roundIndex: 0 }
-      ]
-    };
-    render(<NetworkMap graph={unsortedGraph} replayToken={0} onSelectNode={vi.fn()} />);
-    const cy = captured.instances[0];
-
-    act(() => vi.advanceTimersByTime(0));
-    expect(cy.getElementById("supplier-customer").hasClass("pulse")).toBe(true);
-    expect(cy.getElementById("round-zero-b").hasClass("pulse")).toBe(false);
-    expect(cy.getElementById("round-two").hasClass("pulse")).toBe(false);
-
-    act(() => vi.advanceTimersByTime(420));
-    expect(cy.getElementById("round-zero-b").hasClass("pulse")).toBe(true);
-    expect(cy.getElementById("round-two").hasClass("pulse")).toBe(false);
-  });
-
-  it("clears an active pulse before restarting replay", () => {
-    vi.useFakeTimers();
-    const onSelectNode = vi.fn();
-    const { rerender } = render(
-      <NetworkMap graph={graph} replayToken={0} onSelectNode={onSelectNode} />
-    );
-    const edge = captured.instances[0].getElementById("supplier-customer");
-    act(() => vi.advanceTimersByTime(0));
-    expect(edge.hasClass("pulse")).toBe(true);
-
-    rerender(<NetworkMap graph={graph} replayToken={1} onSelectNode={onSelectNode} />);
-
-    expect(edge.hasClass("pulse")).toBe(false);
-    act(() => vi.advanceTimersByTime(0));
-    expect(edge.hasClass("pulse")).toBe(true);
-  });
-
-  it("cancels stale pulse callbacks and removes active classes on unmount", () => {
-    vi.useFakeTimers();
-    const { unmount } = render(
-      <NetworkMap graph={graph} replayToken={0} onSelectNode={vi.fn()} />
-    );
-    const cy = captured.instances[0];
-    const edge = cy.getElementById("supplier-customer");
-    act(() => vi.advanceTimersByTime(0));
-    expect(edge.hasClass("pulse")).toBe(true);
-
-    unmount();
-
-    expect(edge.hasClass("pulse")).toBe(false);
-    expect(vi.getTimerCount()).toBe(0);
-    expect(() => vi.runAllTimers()).not.toThrow();
+    expect(cy.edges().map((edge) => edge.id())).toEqual([
+      "impact",
+      "exposure",
+      "guardrail",
+      "dissolve",
+      "candidate-candidate-1"
+    ]);
+    const styles = captured.options[0].style as Array<{
+      selector: string;
+      style: Record<string, unknown>;
+    }>;
+    const styleFor = (selector: string) => styles.find((style) => style.selector === selector)?.style;
+    expect(styleFor(".tier-solid_red")).toMatchObject({ "line-color": "#c9383a" });
+    expect(styleFor(".tier-solid_orange")).toMatchObject({ "line-color": "#e06c24" });
+    expect(styleFor(".tier-dashed_amber")).toMatchObject({ "line-style": "dashed" });
+    expect(styleFor(".tier-diffuse_amber")).toMatchObject({ "line-style": "dotted", opacity: 0.28 });
+    expect(cy.getElementById("candidate-candidate-1").hasClass("blue_striped")).toBe(true);
   });
 });

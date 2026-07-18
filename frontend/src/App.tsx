@@ -1,61 +1,96 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { runCloudSlowdown } from "./api";
+import {
+  listReviewCandidates,
+  runCompoundCreditEvent,
+  submitReviewDecision
+} from "./api";
 import { CompanyPanel } from "./components/CompanyPanel";
 import { NetworkMap } from "./components/NetworkMap";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { ScenarioControls } from "./components/ScenarioControls";
-import type { GraphNode, GraphPayload } from "./types";
+import type {
+  EvidenceNode,
+  EvidencePayload,
+  ReviewAction
+} from "./types";
 
-export const SCENARIO_LANGUAGE = "estimated impact under scenario" as const;
+export const SCENARIO_LANGUAGE =
+  "calculated Impact plus activated Exposure; downstream loss not identifiable";
 
-const initialGraph: GraphPayload = {
+const initialEvidence: EvidencePayload = {
+  scenario: {
+    incrementalGaapLoss: null,
+    creditStatus: null,
+    defaultStatus: null,
+    language: SCENARIO_LANGUAGE
+  },
   nodes: [],
   edges: [],
-  pulses: [],
-  summary: {
-    scenarioLanguage: SCENARIO_LANGUAGE,
-    totalRevenueLost: 0,
-    stressedCompanyCount: 0
-  }
+  reviewCandidates: [],
+  auditLog: [],
+  ranking: []
 };
 
 export default function App() {
-  const [graph, setGraph] = useState<GraphPayload>(initialGraph);
-  const [shock, setShock] = useState(0.3);
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [evidence, setEvidence] = useState<EvidencePayload>(initialEvidence);
+  const [shock, setShock] = useState(0.1);
+  const [selectedNode, setSelectedNode] = useState<EvidenceNode | null>(null);
   const [replayToken, setReplayToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
   const requestSequence = useRef(0);
 
   const runScenario = useCallback(async () => {
     const requestId = ++requestSequence.current;
     setError(null);
     try {
-      const payload = await runCloudSlowdown({
-        shock_percentage: shock,
-        pass_through_rate: 0.8,
-        propagation_factor: 0.5,
-        max_rounds: 3
-      });
+      const [scenarioPayload, reviewPayload] = await Promise.all([
+        runCompoundCreditEvent({
+          incrementalGaapLoss: Math.round(shock * 100_000_000_000),
+          creditStatus: "severe_distress",
+          defaultStatus: "not_defaulted"
+        }),
+        listReviewCandidates()
+      ]);
       if (requestId !== requestSequence.current) return;
-      const safePayload: GraphPayload = {
-        ...payload,
-        summary: { ...payload.summary, scenarioLanguage: SCENARIO_LANGUAGE }
+      const refreshed: EvidencePayload = {
+        ...scenarioPayload,
+        reviewCandidates: reviewPayload.reviewCandidates,
+        auditLog: reviewPayload.auditLog
       };
-      setGraph(safePayload);
+      setEvidence(refreshed);
       setSelectedNode((selected) =>
         selected
-          ? safePayload.nodes.find((node) => node.data.id === selected.data.id) ?? null
+          ? refreshed.nodes.find((node) => node.companyId === selected.companyId) ?? null
           : null
       );
       setReplayToken((value) => value + 1);
     } catch {
       if (requestId !== requestSequence.current) return;
-      setGraph(initialGraph);
+      setEvidence(initialEvidence);
       setSelectedNode(null);
-      setError("Unable to load scenario results.");
+      setError("Unable to load compound-credit-event evidence.");
     }
   }, [shock]);
+
+  const submitDecision = useCallback(async (candidateId: string, action: ReviewAction) => {
+    setReviewBusy(true);
+    setError(null);
+    try {
+      const payload = await submitReviewDecision(candidateId, action, {
+        reviewerId: "dashboard-reviewer",
+        reason: action === "approve" ? "Approved from dashboard" : "Rejected from dashboard"
+      });
+      const latestAudit = payload.auditLog[payload.auditLog.length - 1];
+      setReviewNotice(latestAudit?.reason ?? null);
+      await runScenario();
+    } catch {
+      setError("Unable to submit review decision.");
+    } finally {
+      setReviewBusy(false);
+    }
+  }, [runScenario]);
 
   useEffect(() => {
     void runScenario();
@@ -65,17 +100,26 @@ export default function App() {
     <main className="app-shell">
       <header className="topbar">
         <h1>AI Fragility Map</h1>
-        <span>{SCENARIO_LANGUAGE}</span>
+        <span>{evidence.scenario.language}</span>
       </header>
       <section className="workspace">
         <aside className="left-rail">
           <ScenarioControls shock={shock} onShockChange={setShock} onRun={runScenario} />
           {error && <p className="api-error" role="alert">{error}</p>}
-          <ResultsPanel graph={graph} />
+          {reviewNotice && <p className="review-notice" role="status">{reviewNotice}</p>}
+          <ResultsPanel
+            evidence={evidence}
+            onReviewDecision={submitDecision}
+            reviewBusy={reviewBusy}
+          />
         </aside>
-        <NetworkMap graph={graph} replayToken={replayToken} onSelectNode={setSelectedNode} />
+        <NetworkMap evidence={evidence} replayToken={replayToken} onSelectNode={setSelectedNode} />
         <aside className="right-rail">
-          <CompanyPanel nodes={graph.nodes} node={selectedNode} onSelectNode={setSelectedNode} />
+          <CompanyPanel
+            nodes={evidence.nodes}
+            node={selectedNode}
+            onSelectNode={setSelectedNode}
+          />
         </aside>
       </section>
     </main>

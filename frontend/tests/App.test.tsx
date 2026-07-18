@@ -1,202 +1,172 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import App, { SCENARIO_LANGUAGE } from "../src/App";
-import { CompanyPanel } from "../src/components/CompanyPanel";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import App from "../src/App";
 
-const graphResponse = {
-  nodes: [],
-  edges: [],
-  pulses: [],
-  summary: {
-    scenarioLanguage: "estimated impact under scenario",
-    totalRevenueLost: 0,
-    stressedCompanyCount: 0
-  }
+const evidencePayload = {
+  scenario: {
+    incrementalGaapLoss: 10_000_000_000,
+    creditStatus: "severe_distress",
+    defaultStatus: "not_defaulted",
+    language: "calculated Impact plus activated Exposure; downstream loss not identifiable"
+  },
+  nodes: [
+    {
+      companyId: "msft",
+      label: "Microsoft",
+      quantifiedImpact: -2_700_000_000,
+      activatedExposure: null,
+      epistemicState: "quantified_impact",
+      rankingEligible: true,
+      tierSummary: ["solid_red"]
+    },
+    {
+      companyId: "coreweave",
+      label: "CoreWeave",
+      quantifiedImpact: null,
+      activatedExposure: 11_900_000_000,
+      epistemicState: "exposure_detected",
+      rankingEligible: false,
+      tierSummary: ["solid_orange", "dashed_amber"]
+    },
+    {
+      companyId: "nvda",
+      label: "NVIDIA",
+      quantifiedImpact: null,
+      activatedExposure: null,
+      epistemicState: "not_identifiable",
+      rankingEligible: false,
+      tierSummary: ["diffuse_amber"]
+    }
+  ],
+  edges: [
+    {
+      relationshipId: "openai-msft",
+      source: "openai",
+      target: "msft",
+      structureType: "equity_method",
+      tier: "solid_red",
+      resultKind: "impact",
+      value: -2_700_000_000,
+      basis: "equity-method share of stated GAAP loss",
+      provenance: { relationship: "reported", magnitude: "reported", propagation: "calculated", timing: "constrained_estimate" },
+      sourceAccession: "openai-10k-2025"
+    },
+    {
+      relationshipId: "openai-coreweave",
+      source: "openai",
+      target: "coreweave",
+      structureType: "take_or_pay",
+      tier: "solid_orange",
+      resultKind: "exposure",
+      value: 11_900_000_000,
+      basis: "take-or-pay contract envelope activated (not a realized loss)",
+      provenance: { relationship: "reported", magnitude: "reported", propagation: "calculated", timing: "constrained_estimate" },
+      sourceAccession: "coreweave-s1a-2025"
+    },
+    {
+      relationshipId: "openai-coreweave-realized-loss",
+      source: "openai",
+      target: "coreweave",
+      structureType: "take_or_pay",
+      tier: "dashed_amber",
+      resultKind: "realized_loss_unidentifiable",
+      value: null,
+      basis: "activated take-or-pay exposure; realized loss not identifiable without EAD, PD, LGD, timing",
+      provenance: { relationship: "reported", magnitude: "reported", propagation: "calculated", timing: "constrained_estimate" },
+      sourceAccession: "coreweave-s1a-2025"
+    },
+    {
+      relationshipId: "coreweave-nvda",
+      source: "coreweave",
+      target: "nvda",
+      structureType: "behavioural",
+      tier: "diffuse_amber",
+      resultKind: "behavioural",
+      value: null,
+      basis: "documented dependency; magnitude not identifiable from evidence",
+      provenance: { relationship: "reported", magnitude: "reported", propagation: "calculated", timing: "constrained_estimate" },
+      sourceAccession: "coreweave-s1a-2025"
+    }
+  ],
+  reviewCandidates: [
+    {
+      candidateId: "candidate-1",
+      sourceId: "msft-filing",
+      sourceAccession: "acc-1",
+      sourceCompanyId: "msft",
+      targetCompanyId: "coreweave",
+      relationshipType: "take_or_pay",
+      quotedText: "Reported commitment.",
+      numericToken: "$4 billion",
+      value: 4_000_000_000,
+      unit: "USD",
+      period: "through 2030",
+      supportedRule: "reported purchase commitment envelope",
+      unsupportedInference: "counterparty mapping awaits review",
+      status: "proposed"
+    }
+  ],
+  auditLog: [],
+  ranking: [{ companyId: "msft", magnitude: 2_700_000_000 }]
 };
-
-const company = (id: string, label: string) => ({
-  data: {
-    id,
-    label,
-    sectorGroup: "Cloud",
-    revenue: 100,
-    revenueLoss: 12,
-    stressStatus: "stressed" as const
-  }
-});
-
-const graphWith = (...nodes: ReturnType<typeof company>[]) => ({ ...graphResponse, nodes });
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, resolve, reject };
-}
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("App", () => {
-  it("opens on the working AI fragility map", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => graphResponse
-    });
+  it("renders evidence tiers without turning exposure into loss", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => evidencePayload }));
+
+    render(<App />);
+
+    expect(await screen.findByText("Calculated Impact")).toBeTruthy();
+    expect(screen.getByText("Activated Exposure")).toBeTruthy();
+    expect(screen.getByText("Realized loss: not identifiable")).toBeTruthy();
+    expect(screen.getByText("Behavioural dissolve")).toBeTruthy();
+    expect(screen.getByText("Pending human review")).toBeTruthy();
+    expect(screen.queryByText("$11,900M loss")).toBeNull();
+  });
+
+  it("submits review decisions and refreshes the evidence graph", async () => {
+    const reviewedPayload = {
+      ...evidencePayload,
+      reviewCandidates: [],
+      auditLog: [
+        {
+          auditId: "audit-1",
+          candidateId: "candidate-1",
+          fromStatus: "proposed",
+          toStatus: "approved",
+          reviewerId: "dashboard-reviewer",
+          reason: "Quote and amount confirmed",
+          verificationValid: true,
+          createdAt: "2026-07-18T00:00:00Z"
+        }
+      ]
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => evidencePayload })
+      .mockResolvedValueOnce({ ok: true, json: async () => evidencePayload })
+      .mockResolvedValueOnce({ ok: true, json: async () => reviewedPayload })
+      .mockResolvedValueOnce({ ok: true, json: async () => evidencePayload })
+      .mockResolvedValueOnce({ ok: true, json: async () => reviewedPayload });
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
 
-    expect(await screen.findByText("AI Fragility Map")).toBeTruthy();
-    expect(screen.getAllByText("estimated impact under scenario")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Run shock" })).toBeTruthy();
-    expect(screen.getByText("Cloud AI Spending Slowdown")).toBeTruthy();
-    expect(screen.getByText("Scenario Results")).toBeTruthy();
-    expect(screen.getByText("Company")).toBeTruthy();
-    expect(within(screen.getByText("Total revenue lost").parentElement!).getByText("inferred")).toBeTruthy();
-    expect(screen.getByLabelText("AI supply-chain network map")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Approve candidate" }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v2/review/candidate-1/approve",
+        expect.objectContaining({ method: "POST" })
+      );
     });
-  });
-
-  it("keeps the initial graph and shows an error when the scenario request fails", async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new Error("network unavailable"));
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<App />);
-
-    expect((await screen.findByRole("alert")).textContent).toBe("Unable to load scenario results.");
-    expect(screen.getAllByText("estimated impact under scenario")).toHaveLength(2);
-    expect(screen.getByText("$0M")).toBeTruthy();
-    expect(screen.getByText("0")).toBeTruthy();
-  });
-
-  it("allows only the latest scenario response to update the dashboard", async () => {
-    const olderSuccess = deferred<Response>();
-    const olderFailure = deferred<Response>();
-    const newer = deferred<Response>();
-    const fetchMock = vi.fn()
-      .mockReturnValueOnce(olderSuccess.promise)
-      .mockReturnValueOnce(olderFailure.promise)
-      .mockReturnValueOnce(newer.promise);
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
-
-    fireEvent.change(screen.getByLabelText("Shock"), { target: { value: "0.4" } });
-    fireEvent.change(screen.getByLabelText("Shock"), { target: { value: "0.2" } });
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    newer.resolve({ ok: true, json: async () => graphWith(company("new", "New Company")) } as Response);
-    expect(await screen.findByRole("option", { name: "New Company" })).toBeTruthy();
-
-    olderSuccess.resolve({
-      ok: true,
-      json: async () => graphWith(company("old", "Old Company"))
-    } as Response);
-    olderFailure.reject(new Error("stale failure"));
-    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-    expect(screen.getByRole("option", { name: "New Company" })).toBeTruthy();
-    expect(screen.queryByRole("option", { name: "Old Company" })).toBeNull();
-  });
-
-  it("preserves selection by ID across refresh and clears it when absent or on failure", async () => {
-    const first = graphWith(company("kept", "Original label"), company("gone", "Gone"));
-    const refreshed = graphWith(company("kept", "Updated label"));
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => first })
-      .mockResolvedValueOnce({ ok: true, json: async () => refreshed })
-      .mockRejectedValueOnce(new Error("offline"));
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
-
-    const selector = await screen.findByRole("combobox", { name: "Inspect company" });
-    fireEvent.change(selector, { target: { value: "kept" } });
-    expect(screen.getByRole("heading", { name: "Original label" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Run shock" }));
-    expect(await screen.findByRole("heading", { name: "Updated label" })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Run shock" }));
-    expect(await screen.findByRole("alert")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Updated label" })).toBeNull();
-    expect((screen.getByRole("combobox", { name: "Inspect company" }) as HTMLSelectElement).value).toBe("");
-  });
-
-  it("clears selection when a successful refresh no longer contains its company", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => graphWith(company("removed", "Removed Company"))
-      })
-      .mockResolvedValueOnce({ ok: true, json: async () => graphWith(company("other", "Other")) });
-    vi.stubGlobal("fetch", fetchMock);
-    render(<App />);
-
-    const selector = await screen.findByRole("combobox", { name: "Inspect company" });
-    fireEvent.change(selector, { target: { value: "removed" } });
-    fireEvent.click(screen.getByRole("button", { name: "Run shock" }));
-
-    await waitFor(() => expect(screen.queryByRole("heading", { name: "Removed Company" })).toBeNull());
-    expect((screen.getByRole("combobox", { name: "Inspect company" }) as HTMLSelectElement).value).toBe("");
-  });
-
-  it("renders the frontend-owned scenario phrase even when the API phrase is malformed", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        ...graphResponse,
-        summary: { ...graphResponse.summary, scenarioLanguage: "guaranteed prediction" }
-      })
-    }));
-    render(<App />);
-
-    await waitFor(() => expect(screen.getAllByText(SCENARIO_LANGUAGE)).toHaveLength(2));
-    expect(screen.queryByText("guaranteed prediction")).toBeNull();
-  });
-
-  it("provides a keyboard-operable company selector synchronized with selection", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => graphWith(company("one", "Company One"), company("two", "Company Two"))
-    }));
-    render(<App />);
-
-    const selector = await screen.findByRole("combobox", { name: "Inspect company" });
-    selector.focus();
-    fireEvent.keyDown(selector, { key: "ArrowDown" });
-    fireEvent.change(selector, { target: { value: "two" } });
-    expect(screen.getByRole("heading", { name: "Company Two" })).toBeTruthy();
-    expect((selector as HTMLSelectElement).value).toBe("two");
-
-    fireEvent.change(selector, { target: { value: "" } });
-    expect(screen.getByRole("heading", { name: "Company" })).toBeTruthy();
-    expect((selector as HTMLSelectElement).value).toBe("");
-  });
-});
-
-describe("CompanyPanel", () => {
-  it("labels selected-company revenue loss as inferred", () => {
-    render(
-      <CompanyPanel
-        nodes={[]}
-        node={{
-          data: {
-            id: "company-1",
-            label: "Example Company",
-            sectorGroup: "Cloud",
-            revenue: 100,
-            revenueLoss: 12,
-            stressStatus: "stressed"
-          }
-        }}
-        onSelectNode={vi.fn()}
-      />
+    expect(await screen.findByText("Quote and amount confirmed")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v2/scenario/compound-credit-event",
+      expect.objectContaining({ method: "POST" })
     );
-
-    expect(within(screen.getByText("Revenue loss").parentElement!).getByText("inferred")).toBeTruthy();
   });
 });
