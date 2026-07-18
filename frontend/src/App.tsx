@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { runCloudSlowdown } from "./api";
 import { CompanyPanel } from "./components/CompanyPanel";
+import { NetworkMap } from "./components/NetworkMap";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { ScenarioControls } from "./components/ScenarioControls";
 import type { GraphNode, GraphPayload } from "./types";
@@ -19,7 +20,7 @@ const initialGraph: GraphPayload = {
 export default function App() {
   const [graph, setGraph] = useState<GraphPayload>(initialGraph);
   const [shock, setShock] = useState(0.3);
-  const [selectedNode] = useState<GraphNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [replayToken, setReplayToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,11 +57,7 @@ export default function App() {
           {error && <p className="api-error" role="alert">{error}</p>}
           <ResultsPanel graph={graph} />
         </aside>
-        <section
-          className="network-map"
-          aria-label="AI supply-chain network map"
-          data-replay-token={replayToken}
-        />
+        <NetworkMap graph={graph} replayToken={replayToken} onSelectNode={setSelectedNode} />
         <aside className="right-rail">
           <CompanyPanel node={selectedNode} />
         </aside>

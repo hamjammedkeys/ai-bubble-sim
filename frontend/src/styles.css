@@ -79,6 +79,8 @@ select {
 }
 
 .network-map {
+  position: relative;
+  overflow: hidden;
   min-height: calc(100vh - 64px);
   background: #f8fbfd;
   border-left: 1px solid #d9e2eb;

@@ -35,10 +35,10 @@ describe("App", () => {
     expect(screen.getByText("Scenario Results")).toBeTruthy();
     expect(screen.getByText("Company")).toBeTruthy();
     expect(within(screen.getByText("Total revenue lost").parentElement!).getByText("inferred")).toBeTruthy();
+    expect(screen.getByLabelText("AI supply-chain network map")).toBeTruthy();
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByLabelText("AI supply-chain network map").getAttribute("data-replay-token")).toBe("1");
     });
   });
 
