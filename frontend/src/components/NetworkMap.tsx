@@ -18,7 +18,7 @@ const statusColors: Record<string, string> = {
 export function NetworkMap({ graph, replayToken, onSelectNode }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cyRef = useRef<Core | null>(null);
-  const isTest = navigator.userAgent.includes("jsdom");
+  const isTest = import.meta.env.MODE === "test";
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -78,6 +78,7 @@ export function NetworkMap({ graph, replayToken, onSelectNode }: Props) {
     cyRef.current = cy;
 
     return () => {
+      cy.elements(".pulse").removeClass("pulse");
       cy.destroy();
       if (cyRef.current === cy) cyRef.current = null;
     };
@@ -98,6 +99,7 @@ export function NetworkMap({ graph, replayToken, onSelectNode }: Props) {
 
     return () => {
       timeouts.forEach(window.clearTimeout);
+      if (!cy.destroyed()) cy.elements(".pulse").removeClass("pulse");
     };
   }, [graph.pulses, replayToken]);
 
