@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listReviewCandidates,
   runCompoundCreditEvent,
-  submitReviewDecision
+  submitReviewDecision,
+  submitReviewEdit
 } from "./api";
 import { CompanyPanel } from "./components/CompanyPanel";
 import { NetworkMap } from "./components/NetworkMap";
@@ -11,7 +12,8 @@ import type {
   CompoundCreditEventRequest,
   EvidenceNode,
   EvidencePayload,
-  ReviewAction
+  ReviewAction,
+  ReviewCandidate
 } from "./types";
 
 export const SCENARIO_LANGUAGE =
@@ -93,6 +95,25 @@ export default function App() {
     }
   }, [runScenario]);
 
+  const submitEdit = useCallback(async (candidate: ReviewCandidate) => {
+    setReviewBusy(true);
+    setError(null);
+    try {
+      const payload = await submitReviewEdit(candidate.candidateId, {
+        candidate,
+        reviewerId: "dashboard-reviewer",
+        reason: "Edited from dashboard"
+      });
+      const latestAudit = payload.auditLog[payload.auditLog.length - 1];
+      setReviewNotice(latestAudit?.reason ?? null);
+      await runScenario();
+    } catch {
+      setError("Unable to submit review edit.");
+    } finally {
+      setReviewBusy(false);
+    }
+  }, [runScenario]);
+
   useEffect(() => {
     void runScenario();
   }, [runScenario]);
@@ -116,6 +137,7 @@ export default function App() {
           <ResultsPanel
             evidence={evidence}
             onReviewDecision={submitDecision}
+            onReviewEdit={submitEdit}
             reviewBusy={reviewBusy}
           />
         </aside>

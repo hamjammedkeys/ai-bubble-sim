@@ -10,6 +10,8 @@ from fragility_map.extraction.candidates import RelationshipCandidateV2
 from fragility_map.extraction.lifecycle import CandidateLifecycle
 from fragility_map.extraction.verifier import SourceManifestEntry, verify_candidate
 from fragility_map.ingestion.official_pdfs import SourceRecord
+from fragility_map.seed.hero import hero_relationships
+from fragility_map.settings import get_paths
 
 
 def test_compound_credit_event_returns_impact_exposure_and_dissolve() -> None:
@@ -69,6 +71,48 @@ def test_compound_credit_event_returns_realized_loss_guardrail() -> None:
     assert guardrail["tier"] == "dashed_amber"
     assert guardrail["resultKind"] == "realized_loss_unidentifiable"
     assert guardrail["value"] is None
+
+
+def test_compound_credit_event_serializes_primary_evidence_for_every_numeric_hero_edge() -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event",
+        json={
+            "incremental_gaap_loss": 10_000_000_000,
+            "credit_status": "severe_distress",
+            "default_status": "not_defaulted",
+        },
+    )
+
+    assert response.status_code == 200
+    edges = {edge["relationshipId"]: edge for edge in response.json()["edges"]}
+    numeric_relationships = [
+        relationship
+        for relationship in hero_relationships()
+        if relationship.ownership_share is not None
+        or relationship.concentration is not None
+        or relationship.committed_envelope is not None
+    ]
+    for relationship in numeric_relationships:
+        edge = edges[relationship.relationship_id]
+        assert edge["sourceAccession"] == relationship.source_accession
+        assert edge["evidenceQuote"] == relationship.evidence_quote
+        assert edge["sourceLocation"] == relationship.source_location
+
+
+def test_normal_not_defaulted_event_does_not_emit_unactivated_downstream_dissolve() -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event",
+        json={
+            "incremental_gaap_loss": 10_000_000_000,
+            "credit_status": "normal",
+            "default_status": "not_defaulted",
+        },
+    )
+
+    assert response.status_code == 200
+    assert all(
+        edge["relationshipId"] != "coreweave-nvda" for edge in response.json()["edges"]
+    )
 
 
 def test_compound_credit_event_rejects_missing_or_invalid_state() -> None:
@@ -236,3 +280,49 @@ def test_review_routes_persist_transition_and_reverify_edit(
         "/api/v2/review/cand-1/approve",
         json={"reviewer_id": "  ", "reason": "valid reason"},
     ).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("source_id", "forged-source"), ("source_accession", "forged-accession")],
+)
+def test_review_edit_rejects_forged_source_identity(
+    tmp_path: Path, monkeypatch, field: str, value: str
+) -> None:
+    repo = _configure_review_store(tmp_path, monkeypatch)
+    forged_candidate = _candidate().model_copy(update={field: value})
+
+    response = TestClient(app).post(
+        "/api/v2/review/cand-1/edit",
+        json={
+            "candidate": forged_candidate.model_dump(mode="json"),
+            "reviewer_id": "reviewer-1",
+            "reason": "attempted source forgery",
+        },
+    )
+
+    assert response.status_code == 422
+    stored = repo.get_candidate("cand-1")
+    assert stored is not None
+    assert stored["candidate"][field] == _candidate().model_dump(mode="json")[field]
+
+
+def test_fresh_review_store_seeds_a_pending_candidate_without_promoting_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import fragility_map.api.server as api_server
+
+    monkeypatch.setattr(api_server, "get_paths", lambda: get_paths(tmp_path))
+    monkeypatch.setattr(app.state, "review_repository", None, raising=False)
+    monkeypatch.setattr(app.state, "review_lifecycle", None, raising=False)
+
+    response = TestClient(app).get("/api/v2/review/candidates")
+
+    assert response.status_code == 200
+    candidate = response.json()["reviewCandidates"][0]
+    assert candidate["status"] == "proposed"
+    assert candidate["quotedText"]
+    assert candidate["sourceAccession"]
+    assert candidate["mechanicallyValid"] is True
+    repository = app.state.review_repository
+    assert repository.get_candidate(candidate["candidateId"])["status"] == "proposed"

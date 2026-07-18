@@ -1,9 +1,11 @@
-import type { EvidencePayload, ReviewAction } from "../types";
+import { useState } from "react";
+import type { EvidencePayload, ReviewAction, ReviewCandidate } from "../types";
 import { reviewVisualState } from "../types";
 
 interface Props {
   evidence: EvidencePayload;
   onReviewDecision: (candidateId: string, action: ReviewAction) => void;
+  onReviewEdit: (candidate: ReviewCandidate) => void;
   reviewBusy: boolean;
 }
 
@@ -12,7 +14,14 @@ function formatMillions(value: number): string {
   return `${prefix}${Math.round(Math.abs(value) / 1_000_000).toLocaleString()}M`;
 }
 
-export function ResultsPanel({ evidence, onReviewDecision, reviewBusy }: Props) {
+export function ResultsPanel({
+  evidence,
+  onReviewDecision,
+  onReviewEdit,
+  reviewBusy
+}: Props) {
+  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
+  const [editedQuote, setEditedQuote] = useState("");
   const impacts = evidence.edges.filter((edge) => edge.resultKind === "impact" && edge.value !== null);
   const exposures = evidence.edges.filter((edge) => edge.resultKind === "exposure" && edge.value !== null);
   const guardrails = evidence.edges.filter((edge) => edge.tier === "dashed_amber");
@@ -53,7 +62,11 @@ export function ResultsPanel({ evidence, onReviewDecision, reviewBusy }: Props) 
           className={`review-candidate ${reviewVisualState(candidate)}`}
           key={candidate.candidateId}
         >
-          <p>Pending human review</p>
+          <p>
+            {candidate.targetCompanyId === null
+              ? "Unlinked candidate — target company unresolved"
+              : "Pending human review"}
+          </p>
           <small>{candidate.quotedText}</small>
           <div className="review-actions">
             <button
@@ -70,7 +83,36 @@ export function ResultsPanel({ evidence, onReviewDecision, reviewBusy }: Props) 
             >
               Reject candidate
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingCandidateId(candidate.candidateId);
+                setEditedQuote(candidate.quotedText);
+              }}
+              disabled={reviewBusy}
+            >
+              Edit candidate
+            </button>
           </div>
+          {editingCandidateId === candidate.candidateId && (
+            <form
+              className="review-edit"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onReviewEdit({ ...candidate, quotedText: editedQuote });
+              }}
+            >
+              <label>
+                Candidate quote
+                <textarea
+                  value={editedQuote}
+                  onChange={(event) => setEditedQuote(event.target.value)}
+                  disabled={reviewBusy}
+                />
+              </label>
+              <button type="submit" disabled={reviewBusy}>Submit edit</button>
+            </form>
+          )}
         </article>
       ))}
       {evidence.auditLog.length > 0 && (

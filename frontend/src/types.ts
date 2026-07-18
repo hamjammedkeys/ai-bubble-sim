@@ -23,6 +23,8 @@ export interface EvidenceEdge {
   basis: string;
   provenance: Record<string, string>;
   sourceAccession: string | null;
+  evidenceQuote: string | null;
+  sourceLocation: string | null;
 }
 
 export interface ReviewCandidate {
@@ -30,7 +32,7 @@ export interface ReviewCandidate {
   sourceId: string;
   sourceAccession: string;
   sourceCompanyId: string;
-  targetCompanyId: string;
+  targetCompanyId: string | null;
   relationshipType: string;
   quotedText: string;
   numericToken: string | null;
@@ -78,6 +80,10 @@ export interface CompoundCreditEventRequest {
 export interface ReviewDecisionBody {
   reviewerId: string;
   reason: string;
+}
+
+export interface ReviewEditBody extends ReviewDecisionBody {
+  candidate: ReviewCandidate;
 }
 
 export function reviewVisualState(candidate: ReviewCandidate): ReviewVisualState {

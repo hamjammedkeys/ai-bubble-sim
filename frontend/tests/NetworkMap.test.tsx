@@ -84,4 +84,16 @@ describe("NetworkMap", () => {
     expect(styleFor(".tier-diffuse_amber")).toMatchObject({ "line-style": "dotted", opacity: 0.28 });
     expect(cy.getElementById("candidate-candidate-1").hasClass("blue_striped")).toBe(true);
   });
+
+  it("keeps an unlinked candidate out of Cytoscape", () => {
+    const unlinkedEvidence = {
+      ...evidenceGraph,
+      reviewCandidates: [{ ...evidenceGraph.reviewCandidates[0], targetCompanyId: null }]
+    };
+
+    render(<NetworkMap evidence={unlinkedEvidence as never} replayToken={0} onSelectNode={vi.fn()} />);
+
+    const cy = captured.instances[0];
+    expect(cy.getElementById("candidate-candidate-1").empty()).toBe(true);
+  });
 });

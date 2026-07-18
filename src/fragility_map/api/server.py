@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from math import isfinite
 from pathlib import Path
 from typing import Any, Literal
@@ -16,6 +17,7 @@ from fragility_map.extraction.verifier import (
     VerificationResult,
     verify_candidate,
 )
+from fragility_map.ingestion.official_pdfs import SourceRecord
 from fragility_map.model.graph_export import build_graph_payload
 from fragility_map.model.propagation import Shock, ShockResult, run_compound_shock
 from fragility_map.model.stress import (
@@ -28,6 +30,65 @@ from fragility_map.seed.hero import hero_companies, hero_relationships, hero_sho
 from fragility_map.settings import get_paths
 
 app = FastAPI(title="AI Fragility Map API")
+
+
+_PENDING_REVIEW_SOURCE_ID = "coreweave-424b4-2025-03-31"
+_PENDING_REVIEW_ACCESSION = "0001193125-25-067651"
+_PENDING_REVIEW_QUOTE = (
+    "For the years ended December 31, 2023 and 2024, our largest customer was Microsoft, "
+    "which accounted for 35% and 62% of our revenue, respectively."
+)
+_PENDING_REVIEW_FILING_TEXT = f"CoreWeave, Inc.\n{_PENDING_REVIEW_QUOTE}\n"
+
+
+def _fresh_review_candidate() -> RelationshipCandidateV2:
+    return RelationshipCandidateV2(
+        candidate_id="coreweave-msft-concentration-proposal",
+        source_id=_PENDING_REVIEW_SOURCE_ID,
+        source_accession=_PENDING_REVIEW_ACCESSION,
+        source_company_id="coreweave",
+        target_company_id="msft",
+        relationship_type="customer_concentration",
+        quoted_text=_PENDING_REVIEW_QUOTE,
+        numeric_token=None,
+        value=None,
+        unit=None,
+        period="years ended December 31, 2023 and 2024",
+        supported_rule="disclosed customer concentration requires a direct edge-flow shock",
+        unsupported_inference="an aggregate upstream shock does not quantify this relationship",
+    )
+
+
+def _seed_fresh_review_candidate(repository: FragilityRepository) -> None:
+    """Seed one mechanically verified proposal without promoting it into the engine."""
+    candidate = _fresh_review_candidate()
+    if repository.get_candidate(candidate.candidate_id) is not None:
+        return
+    source_path = repository.db_path.parent / "raw" / f"{candidate.source_id}.txt"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(_PENDING_REVIEW_FILING_TEXT, encoding="utf-8")
+    repository.upsert_sources(
+        [
+            SourceRecord(
+                source_id=candidate.source_id,
+                company_id=candidate.source_company_id,
+                source_type="424B4",
+                source_date=date(2025, 3, 31),
+                url=(
+                    "https://www.sec.gov/Archives/edgar/data/1769628/"
+                    "000119312525067651/d899798d424b4.htm"
+                ),
+                local_path=str(source_path),
+                extraction_status="complete",
+            )
+        ]
+    )
+    verification = verify_candidate(
+        _PENDING_REVIEW_FILING_TEXT,
+        candidate,
+        [SourceManifestEntry(candidate.source_accession, candidate.source_id)],
+    )
+    repository.save_candidate(candidate, verification)
 
 
 class ScenarioRequest(BaseModel):
@@ -190,9 +251,18 @@ def _compound_result(
     direct_result = run_compound_shock(
         relationships, shock, include_realized_loss_guardrail=include_realized_loss_guardrail
     )
-    downstream_result = run_compound_shock(
-        relationships,
-        Shock("coreweave", credit_status=shock.credit_status, default_status=shock.default_status),
+    coreweave = direct_result.nodes.get("coreweave")
+    downstream_result = (
+        run_compound_shock(
+            relationships,
+            Shock(
+                "coreweave",
+                credit_status=shock.credit_status,
+                default_status=shock.default_status,
+            ),
+        )
+        if coreweave is not None and coreweave.activated_exposure is not None
+        else ShockResult(edges=[], nodes={})
     )
     result = ShockResult(
         edges=[*direct_result.edges, *downstream_result.edges],
@@ -245,6 +315,7 @@ def _review_repository() -> FragilityRepository:
     if repository is None:
         repository = FragilityRepository(get_paths().db_path)
         repository.create_schema()
+        _seed_fresh_review_candidate(repository)
         app.state.review_repository = repository
     return repository
 
@@ -367,10 +438,17 @@ def _transition_candidate(
     verification = _verification_from_record(record)
     lifecycle = _review_lifecycle()
     _restore_lifecycle_candidate(lifecycle, candidate, verification)
-    if action == "edit" and (
-        edited_candidate is None or edited_candidate.candidate_id != candidate_id
-    ):
-        raise HTTPException(status_code=422, detail="edited candidate ID must match the route")
+    if action == "edit":
+        if edited_candidate is None or edited_candidate.candidate_id != candidate_id:
+            raise HTTPException(status_code=422, detail="edited candidate ID must match the route")
+        if (
+            edited_candidate.source_id != candidate.source_id
+            or edited_candidate.source_accession != candidate.source_accession
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="source identity is immutable during review edits",
+            )
     try:
         if action == "approve":
             updated = lifecycle.approve(candidate_id, reviewer_id, reason)
@@ -382,9 +460,7 @@ def _transition_candidate(
                 _stored_filing_text(repository, candidate.source_id),
                 edited_candidate,
                 [
-                    SourceManifestEntry(
-                        edited_candidate.source_accession, edited_candidate.source_id
-                    )
+                    SourceManifestEntry(candidate.source_accession, candidate.source_id)
                 ],
             )
             updated = lifecycle.edit(

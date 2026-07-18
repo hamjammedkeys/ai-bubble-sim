@@ -39,15 +39,17 @@ function graphElements(evidence: EvidencePayload) {
     },
     classes: `tier-${edge.tier}`
   }));
-  const candidateEdges = evidence.reviewCandidates.map((candidate) => ({
-    data: {
-      id: `candidate-${candidate.candidateId}`,
-      source: candidate.sourceCompanyId,
-      target: candidate.targetCompanyId,
-      tier: "blue_striped"
-    },
-    classes: "blue_striped"
-  }));
+  const candidateEdges = evidence.reviewCandidates
+    .filter((candidate) => candidate.targetCompanyId !== null)
+    .map((candidate) => ({
+      data: {
+        id: `candidate-${candidate.candidateId}`,
+        source: candidate.sourceCompanyId,
+        target: candidate.targetCompanyId,
+        tier: "blue_striped"
+      },
+      classes: "blue_striped"
+    }));
   return [...nodes, ...edges, ...candidateEdges];
 }
 

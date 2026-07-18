@@ -104,6 +104,8 @@ def build_evidence_payload(
                 "basis": edge.basis,
                 "provenance": _provenance_payload(relationship),
                 "sourceAccession": relationship.source_accession,
+                "evidenceQuote": relationship.evidence_quote,
+                "sourceLocation": relationship.source_location,
             }
         )
 

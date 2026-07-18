@@ -33,6 +33,8 @@ class StructuralRelationship:
     concentration: float | None = None
     committed_envelope: float | None = None
     source_accession: str | None = None
+    evidence_quote: str | None = None
+    source_location: str | None = None
 
 
 @dataclass(frozen=True)

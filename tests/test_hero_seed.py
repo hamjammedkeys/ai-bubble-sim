@@ -37,3 +37,21 @@ def test_hero_shock_has_explicit_observed_states() -> None:
         shock.default_status,
     ) == ("openai", 10_000_000_000, "severe_distress", "not_defaulted")
     assert set(hero_companies()) >= {"openai", "msft", "coreweave", "nvda"}
+
+
+def test_every_numeric_hero_relationship_has_immutable_primary_evidence() -> None:
+    numeric_relationships = [
+        relationship
+        for relationship in hero_relationships()
+        if relationship.ownership_share is not None
+        or relationship.concentration is not None
+        or relationship.committed_envelope is not None
+    ]
+
+    assert {relationship.relationship_id for relationship in numeric_relationships} == {
+        "openai-msft",
+        "openai-coreweave",
+    }
+    assert all(relationship.source_accession for relationship in numeric_relationships)
+    assert all(relationship.evidence_quote for relationship in numeric_relationships)
+    assert all(relationship.source_location for relationship in numeric_relationships)

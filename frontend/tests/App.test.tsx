@@ -94,7 +94,7 @@ const evidencePayload = {
       sourceId: "msft-filing",
       sourceAccession: "acc-1",
       sourceCompanyId: "msft",
-      targetCompanyId: "coreweave",
+      targetCompanyId: null,
       relationshipType: "take_or_pay",
       quotedText: "Reported commitment.",
       numericToken: "$4 billion",
@@ -124,8 +124,43 @@ describe("App", () => {
     expect(screen.getByText("Activated Exposure")).toBeTruthy();
     expect(screen.getByText("Realized loss: not identifiable")).toBeTruthy();
     expect(screen.getByText("Behavioural dissolve")).toBeTruthy();
-    expect(screen.getByText("Pending human review")).toBeTruthy();
+    const unlinkedCandidate = screen.getByText(
+      "Unlinked candidate — target company unresolved"
+    );
+    expect(unlinkedCandidate.closest("article")?.className).toContain("blue_striped");
     expect(screen.queryByText("$11,900M loss")).toBeNull();
+  });
+
+  it("submits a complete edited candidate only after the review API accepts it", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => evidencePayload })
+      .mockResolvedValueOnce({ ok: true, json: async () => evidencePayload })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ...evidencePayload, reviewCandidates: [], auditLog: [] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => evidencePayload })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ...evidencePayload, reviewCandidates: [], auditLog: [] })
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit candidate" }));
+    fireEvent.change(screen.getByLabelText("Candidate quote"), {
+      target: { value: "Corrected proposal text." }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit edit" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v2/review/candidate-1/edit",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"candidate_id":"candidate-1"')
+        })
+      );
+    });
+    expect(screen.queryByText("Corrected proposal text.")).toBeNull();
   });
 
   it("submits review decisions and refreshes the evidence graph", async () => {

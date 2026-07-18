@@ -259,6 +259,36 @@ dd {
   opacity: 0.6;
 }
 
+.review-edit {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.review-edit label {
+  display: grid;
+  gap: 4px;
+  color: #455a70;
+  font-size: 12px;
+}
+
+.review-edit textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.review-edit button {
+  justify-self: start;
+  min-height: 30px;
+  border: 1px solid #2f6da5;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #1f619b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .audit-log {
   margin-top: 12px;
   padding-top: 12px;

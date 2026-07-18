@@ -96,6 +96,8 @@ def test_payload_serializes_edge_evidence_with_stable_camel_case_names() -> None
                 "timing": "constrained_estimate",
             },
             "sourceAccession": "openai-10k-2025",
+            "evidenceQuote": None,
+            "sourceLocation": None,
         }
     ]
 

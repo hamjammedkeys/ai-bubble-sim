@@ -1,4 +1,4 @@
-"""Illustrative hero seed; accession verification debt remains tracked in evidence fields."""
+"""Verified, immutable source evidence for the compound-credit-event hero."""
 
 from fragility_map.model.evidence import EdgeProvenance, ProvenanceLabel, StructureType
 from fragility_map.model.propagation import Shock, StructuralRelationship
@@ -42,7 +42,12 @@ def hero_relationships() -> list[StructuralRelationship]:
             StructureType.EQUITY_METHOD,
             _reported_provenance(),
             ownership_share=0.27,
-            source_accession="openai-10k-2025",
+            source_accession="0001193125-25-256321",
+            evidence_quote=(
+                "As a result of the recapitalization, Microsoft holds approximately 27 "
+                "percent in the PBC on an as-converted diluted basis."
+            ),
+            source_location="Microsoft Form 10-Q, Note 17 — Subsequent Event (2025-09-30)",
         ),
         StructuralRelationship(
             "openai-coreweave",
@@ -51,7 +56,13 @@ def hero_relationships() -> list[StructuralRelationship]:
             StructureType.TAKE_OR_PAY,
             _reported_provenance(),
             committed_envelope=11_900_000_000,
-            source_accession="coreweave-s1a-2025",
+            source_accession="0001193125-25-058309",
+            evidence_quote=(
+                "As of March 11, 2025, subject to any termination described below and "
+                "satisfaction of delivery and availability of service requirements, OpenAI "
+                "has committed to pay us up to approximately $11.9 billion through October 2030."
+            ),
+            source_location="CoreWeave Form S-1/A, Note 18 — Subsequent Events (2025-03-20)",
         ),
         StructuralRelationship(
             "coreweave-nvda",
@@ -59,7 +70,7 @@ def hero_relationships() -> list[StructuralRelationship]:
             "nvda",
             StructureType.BEHAVIOURAL,
             _reported_provenance(),
-            source_accession="coreweave-s1a-2025",
+            source_accession="0001193125-25-058309",
         ),
     ]
 
