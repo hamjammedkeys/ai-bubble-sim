@@ -3,6 +3,7 @@
 from collections.abc import Mapping, Sequence
 
 from fragility_map.extraction.candidates import RelationshipCandidateV2
+from fragility_map.model.evidence import Tier
 from fragility_map.model.propagation import (
     ShockResult,
     StructuralRelationship,
@@ -49,13 +50,19 @@ def build_evidence_payload(
     relationships: Sequence[StructuralRelationship],
     shock_result: ShockResult,
     candidates: Sequence[RelationshipCandidateV2] = (),
+    include_realized_loss_guardrail: bool = False,
 ) -> dict[str, object]:
     """Serialize only activated results, preserving their evidence and epistemic limits."""
     relationship_by_id = {
         relationship.relationship_id: relationship for relationship in relationships
     }
     tiers_by_target: dict[str, list[str]] = {}
-    for edge in shock_result.edges:
+    displayed_edges = [
+        edge
+        for edge in shock_result.edges
+        if include_realized_loss_guardrail or edge.tier is not Tier.DASHED_AMBER
+    ]
+    for edge in displayed_edges:
         tiers_by_target.setdefault(edge.target_company_id, []).append(edge.tier.value)
 
     nodes: list[dict[str, object]] = []
@@ -77,8 +84,12 @@ def build_evidence_payload(
         )
 
     edges: list[dict[str, object]] = []
-    for edge in shock_result.edges:
+    for edge in displayed_edges:
         relationship = relationship_by_id.get(edge.relationship_id)
+        if relationship is None and edge.tier is Tier.DASHED_AMBER:
+            relationship = relationship_by_id.get(
+                edge.relationship_id.removesuffix("-realized-loss")
+            )
         if relationship is None:
             continue
         edges.append(

@@ -47,6 +47,41 @@ class EdgeResult:
 
 
 @dataclass(frozen=True)
+class RealizedLossUnidentifiable:
+    """A realized loss that cannot be quantified from the available evidence."""
+
+    edge: StructuralRelationship
+    exposure: float
+    missing_parameters: tuple[str, ...]
+
+    def render(self) -> EdgeResult:
+        return EdgeResult(
+            relationship_id=f"{self.edge.relationship_id}-realized-loss",
+            source_company_id=self.edge.source_company_id,
+            target_company_id=self.edge.target_company_id,
+            tier=Tier.DASHED_AMBER,
+            result_kind="realized_loss_unidentifiable",
+            value=None,
+            basis=(
+                "activated take-or-pay exposure; realized loss not identifiable without "
+                + ", ".join(self.missing_parameters)
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class SensitivityRow:
+    parameter: str
+    supported_range: tuple[float, float] | None
+    output_status: str
+
+
+@dataclass(frozen=True)
+class SensitivityResult:
+    rows: list[SensitivityRow]
+
+
+@dataclass(frozen=True)
 class NodeResult:
     company_id: str
     quantified_impact: float | None
@@ -64,6 +99,7 @@ class ShockResult:
 def run_compound_shock(
     relationships: list[StructuralRelationship],
     shock: Shock,
+    include_realized_loss_guardrail: bool = False,
 ) -> ShockResult:
     edges: list[EdgeResult] = []
     nodes: dict[str, NodeResult] = {}
@@ -146,6 +182,14 @@ def run_compound_shock(
                     "take-or-pay contract envelope activated (not a realized loss)",
                 )
             )
+            if include_realized_loss_guardrail:
+                edges.append(
+                    RealizedLossUnidentifiable(
+                        edge=rel,
+                        exposure=rel.committed_envelope,
+                        missing_parameters=("EAD", "PD", "LGD", "timing"),
+                    ).render()
+                )
             existing = nodes.get(rel.target_company_id)
             impact = existing.quantified_impact if existing else None
             existing_exposure = existing.activated_exposure if existing else None
@@ -162,6 +206,25 @@ def run_compound_shock(
             )
 
     return ShockResult(edges=edges, nodes=nodes, shock=shock)
+
+
+def run_sensitivity(
+    relationships: list[StructuralRelationship],
+    shock: Shock,
+    parameter_names: tuple[str, ...],
+) -> SensitivityResult:
+    """Report requested credit parameters without assuming undisclosed ranges."""
+    del relationships, shock
+    return SensitivityResult(
+        rows=[
+            SensitivityRow(
+                parameter=parameter,
+                supported_range=None,
+                output_status="not_identifiable",
+            )
+            for parameter in parameter_names
+        ]
+    )
 
 
 def run_edge_flow_shock(
