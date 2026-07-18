@@ -175,3 +175,18 @@ dd {
     order: 1;
   }
 }
+
+.candidate-card {
+  border-left: 4px solid #2f6df6;
+  background: repeating-linear-gradient(
+    -45deg, rgba(47, 109, 246, 0.06), rgba(47, 109, 246, 0.06) 8px,
+    transparent 8px, transparent 16px
+  );
+  padding: 8px 10px;
+  margin-top: 8px;
+}
+.evidence-quote { background: #fff2a8; }
+.check-list { list-style: none; padding: 0; font-size: 12px; }
+.check-list li[data-passed="false"] { color: #b72d3a; }
+.semantic-pending { font-size: 12px; color: #6b5b00; }
+.decision-row { display: flex; gap: 8px; }

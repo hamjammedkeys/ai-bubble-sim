@@ -3,6 +3,7 @@ import { runCloudSlowdown } from "./api";
 import { CompanyPanel } from "./components/CompanyPanel";
 import { NetworkMap } from "./components/NetworkMap";
 import { ResultsPanel } from "./components/ResultsPanel";
+import { ReviewPanel } from "./components/ReviewPanel";
 import { ScenarioControls } from "./components/ScenarioControls";
 import type { GraphNode, GraphPayload } from "./types";
 
@@ -72,6 +73,7 @@ export default function App() {
           <ScenarioControls shock={shock} onShockChange={setShock} onRun={runScenario} />
           {error && <p className="api-error" role="alert">{error}</p>}
           <ResultsPanel graph={graph} />
+          <ReviewPanel onDecision={() => void runScenario()} />
         </aside>
         <NetworkMap graph={graph} replayToken={replayToken} onSelectNode={setSelectedNode} />
         <aside className="right-rail">
