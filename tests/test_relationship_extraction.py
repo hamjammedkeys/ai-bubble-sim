@@ -172,11 +172,11 @@ def test_keyword_proposer_extracts_take_or_pay_and_concentration() -> None:
     by_type = {c.relationship_type: c for c in candidates}
 
     top = by_type["take_or_pay"]
-    assert top.value == 11_900
+    assert top.value == 11_900_000_000
     assert top.unit == "USD"
     assert top.quoted_text in text
     assert top.status is CandidateStatus.PROPOSED
 
     conc = by_type["customer_concentration"]
-    assert conc.value == 0.62
+    assert conc.value == 62.0
     assert conc.quoted_text == "Microsoft accounted for 62% of our revenue in 2024."

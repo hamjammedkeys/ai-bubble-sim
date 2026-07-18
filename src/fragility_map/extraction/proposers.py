@@ -39,7 +39,8 @@ class KeywordProposer:
             billion = _BILLION.search(sentence)
             if billion is not None:
                 token = billion.group(0)
-                value = float(billion.group(1)) * 1_000
+                # Actual USD, matching the verifier's arithmetic scaling ("$X billion" -> X*1e9).
+                value = float(billion.group(1)) * 1_000_000_000
                 candidates.append(
                     RelationshipCandidateV2(
                         **self._base(source_id, "take_or_pay", sentence),
@@ -60,7 +61,8 @@ class KeywordProposer:
                     RelationshipCandidateV2(
                         **self._base(source_id, "customer_concentration", sentence),
                         numeric_token=f"{percent.group(1)}%",
-                        value=float(percent.group(1)) / 100,
+                        # Percent points, so the verifier's arithmetic (parses "62") matches.
+                        value=float(percent.group(1)),
                         unit=None,
                         period=None,
                         supported_rule="disclosed customer-concentration percentage",
