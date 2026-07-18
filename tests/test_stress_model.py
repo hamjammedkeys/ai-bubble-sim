@@ -1,3 +1,9 @@
+from fragility_map.model.evidence import (
+    EdgeProvenance,
+    ProvenanceLabel,
+    Tier,
+    quantifies_propagation,
+)
 from fragility_map.model.stress import (
     CompanyFinancials,
     NetworkRelationship,
@@ -38,3 +44,29 @@ def test_critical_when_operating_income_turns_negative() -> None:
     )
 
     assert result.company_impacts["smci"].stress_status == "critical"
+
+
+def test_quantifies_propagation_requires_reported_or_calculated() -> None:
+    reported = EdgeProvenance(
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.CALCULATED,
+        ProvenanceLabel.REPORTED,
+    )
+    assumed = EdgeProvenance(
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.CONSTRAINED,
+        ProvenanceLabel.ASSUMED,
+        ProvenanceLabel.ASSUMED,
+    )
+    assert quantifies_propagation(reported) is True
+    assert quantifies_propagation(assumed) is False
+
+
+def test_tier_values_are_the_four_canonical_strings() -> None:
+    assert {t.value for t in Tier} == {
+        "solid_red",
+        "solid_orange",
+        "dashed_amber",
+        "diffuse_amber",
+    }
