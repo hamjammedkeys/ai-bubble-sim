@@ -50,3 +50,29 @@ export function approve(body: { candidate_id: string; reviewer_id: string; reaso
 export function reject(body: { candidate_id: string; reviewer_id: string; reason: string }) {
   return postJson("/api/extraction/reject", body);
 }
+
+export interface CreditEventEdge {
+  relationship_id: string;
+  source: string;
+  target: string;
+  tier: string;
+  result_kind: string;
+  value: number | null;
+  basis: string;
+}
+
+export interface CreditEventResult {
+  edges: CreditEventEdge[];
+  nodes: Record<
+    string,
+    {
+      quantified_impact: number | null;
+      activated_exposure: number | null;
+      epistemic_state: string;
+    }
+  >;
+}
+
+export function runCreditEvent(): Promise<CreditEventResult> {
+  return postJson("/api/scenario/credit-event", {});
+}
