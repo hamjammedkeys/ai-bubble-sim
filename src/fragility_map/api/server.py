@@ -444,6 +444,7 @@ def _transition_candidate(
         if (
             edited_candidate.source_id != candidate.source_id
             or edited_candidate.source_accession != candidate.source_accession
+            or edited_candidate.source_company_id != candidate.source_company_id
         ):
             raise HTTPException(
                 status_code=422,

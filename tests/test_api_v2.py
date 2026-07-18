@@ -284,7 +284,11 @@ def test_review_routes_persist_transition_and_reverify_edit(
 
 @pytest.mark.parametrize(
     "field,value",
-    [("source_id", "forged-source"), ("source_accession", "forged-accession")],
+    [
+        ("source_id", "forged-source"),
+        ("source_accession", "forged-accession"),
+        ("source_company_id", "forged-company"),
+    ],
 )
 def test_review_edit_rejects_forged_source_identity(
     tmp_path: Path, monkeypatch, field: str, value: str
