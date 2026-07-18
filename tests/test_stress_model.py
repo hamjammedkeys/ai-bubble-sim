@@ -559,3 +559,31 @@ def test_ranking_excludes_numeric_impacts_without_quantified_state() -> None:
     )
 
     assert rank_vulnerability(result) == []
+
+
+def test_hero_compound_credit_event_lights_impact_and_exposure() -> None:
+    equity = StructuralRelationship(
+        "openai-msft", "openai", "msft", StructureType.EQUITY_METHOD,
+        _equity_provenance(), ownership_share=0.27,
+    )
+    take_or_pay = StructuralRelationship(
+        "openai-coreweave", "openai", "coreweave", StructureType.TAKE_OR_PAY,
+        _take_or_pay_provenance(), committed_envelope=11_900,
+    )
+    downstream = StructuralRelationship(
+        "coreweave-nvda", "openai", "nvda", StructureType.BEHAVIOURAL,
+        _behavioural_provenance(),
+    )
+    shock = Shock("openai", incremental_gaap_loss=10_000, credit_status="severe_distress")
+
+    result = run_compound_shock([equity, take_or_pay, downstream], shock)
+
+    assert result.nodes["msft"].epistemic_state == "quantified_impact"
+    assert result.nodes["msft"].quantified_impact == -2_700.0
+    assert result.nodes["coreweave"].epistemic_state == "exposure_detected"
+    assert result.nodes["coreweave"].activated_exposure == 11_900
+    assert result.nodes["nvda"].epistemic_state == "not_identifiable"
+    tiers = {e.relationship_id: e.tier for e in result.edges}
+    assert tiers["openai-msft"] == Tier.SOLID_RED
+    assert tiers["openai-coreweave"] == Tier.SOLID_ORANGE
+    assert tiers["coreweave-nvda"] == Tier.DIFFUSE_AMBER
