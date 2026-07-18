@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from fragility_map.extraction.candidates import RelationshipCandidateV2
@@ -75,3 +75,50 @@ def propose(request: ProposeRequest) -> dict:
             }
         )
     return {"candidates": views}
+
+
+class DecisionRequest(BaseModel):
+    candidate_id: str = Field(min_length=1)
+    reviewer_id: str = Field(min_length=1)
+    reason: str = Field(min_length=1)
+
+
+def _audit_view() -> list[dict]:
+    return [
+        {
+            "candidate_id": e.candidate_id,
+            "from_status": e.from_status.value if e.from_status else None,
+            "to_status": e.to_status.value,
+            "reviewer_id": e.reviewer_id,
+            "reason": e.reason,
+            "verification_valid": e.verification_valid,
+        }
+        for e in SESSION.lifecycle.audit_log()
+    ]
+
+
+def _decide(request: DecisionRequest, approve: bool) -> dict:
+    try:
+        if approve:
+            candidate = SESSION.lifecycle.approve(
+                request.candidate_id, request.reviewer_id, request.reason
+            )
+        else:
+            candidate = SESSION.lifecycle.reject(
+                request.candidate_id, request.reviewer_id, request.reason
+            )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return {"candidate": candidate.model_dump(mode="json"), "audit": _audit_view()}
+
+
+@router.post("/approve")
+def approve(request: DecisionRequest) -> dict:
+    return _decide(request, approve=True)
+
+
+@router.post("/reject")
+def reject(request: DecisionRequest) -> dict:
+    return _decide(request, approve=False)

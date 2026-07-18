@@ -48,3 +48,43 @@ def test_propose_returns_verified_blue_striped_candidates() -> None:
     start, end = top["highlight"]["start"], top["highlight"]["end"]
     assert end - start == len(quote)
     assert text[start:end] == quote
+
+
+def test_approve_then_reject_updates_status_and_audit() -> None:
+    _propose()
+
+    approved = client.post(
+        "/api/extraction/approve",
+        json={
+            "candidate_id": "coreweave-s1a-take_or_pay",
+            "reviewer_id": "judge",
+            "reason": "envelope and counterparty confirmed in the quoted passage",
+        },
+    )
+    assert approved.status_code == 200
+    assert approved.json()["candidate"]["status"] == "approved"
+    assert approved.json()["audit"][-1]["to_status"] == "approved"
+
+    rejected = client.post(
+        "/api/extraction/reject",
+        json={
+            "candidate_id": "coreweave-s1a-customer_concentration",
+            "reviewer_id": "judge",
+            "reason": "concentration does not imply the buyer drives purchases",
+        },
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["candidate"]["status"] == "rejected"
+
+
+def test_reject_requires_reason() -> None:
+    _propose()
+    response = client.post(
+        "/api/extraction/reject",
+        json={
+            "candidate_id": "coreweave-s1a-take_or_pay",
+            "reviewer_id": "judge",
+            "reason": "   ",
+        },
+    )
+    assert response.status_code == 409
