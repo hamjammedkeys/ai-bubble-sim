@@ -1,6 +1,7 @@
 from datetime import date
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from fragility_map.api.server import app
@@ -52,6 +53,35 @@ def test_compound_credit_event_returns_impact_exposure_and_dissolve() -> None:
 def test_compound_credit_event_rejects_missing_or_invalid_state() -> None:
     response = TestClient(app).post(
         "/api/v2/scenario/compound-credit-event", json={"incremental_gaap_loss": -1}
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("field", ["tier", "numeric_result"])
+def test_compound_credit_event_rejects_client_result_fields(field: str) -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event",
+        json={
+            "incremental_gaap_loss": 10_000_000_000,
+            "credit_status": "severe_distress",
+            "default_status": "not_defaulted",
+            field: "client-provided",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("loss", ["NaN", "Infinity"])
+def test_compound_credit_event_rejects_nonfinite_loss(loss: str) -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event",
+        content=(
+            f'{{"incremental_gaap_loss": {loss}, "credit_status": "severe_distress", '
+            '"default_status": "not_defaulted"}'
+        ),
+        headers={"content-type": "application/json"},
     )
 
     assert response.status_code == 422
@@ -168,6 +198,16 @@ def test_review_routes_persist_transition_and_reverify_edit(
             "candidate": invalid_candidate,
             "reviewer_id": "reviewer-2",
             "reason": "client result fields are forbidden",
+        },
+    ).status_code == 422
+
+    mismatched_candidate = _candidate().model_copy(update={"candidate_id": "cand-other"})
+    assert client.post(
+        "/api/v2/review/cand-1/edit",
+        json={
+            "candidate": mismatched_candidate.model_dump(mode="json"),
+            "reviewer_id": "reviewer-2",
+            "reason": "candidate ID must match the route",
         },
     ).status_code == 422
 

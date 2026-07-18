@@ -1,4 +1,5 @@
 import json
+from math import isfinite
 from pathlib import Path
 from typing import Any, Literal
 
@@ -37,9 +38,28 @@ class ScenarioRequest(BaseModel):
 
 
 class CompoundCreditEventRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
     incremental_gaap_loss: float = Field(ge=0.0)
     credit_status: Literal["normal", "severe_distress"]
     default_status: Literal["not_defaulted", "defaulted"]
+
+    @field_validator("incremental_gaap_loss", mode="before")
+    @classmethod
+    def reject_nonfinite_loss(cls, value: Any) -> Any:
+        if isinstance(value, float) and not isfinite(value):
+            return "non-finite"
+        if isinstance(value, str) and value.strip().lower() in {
+            "nan",
+            "inf",
+            "+inf",
+            "-inf",
+            "infinity",
+            "+infinity",
+            "-infinity",
+        }:
+            return "non-finite"
+        return value
 
 
 class ReviewDecisionRequest(BaseModel):
@@ -338,14 +358,17 @@ def _transition_candidate(
     verification = _verification_from_record(record)
     lifecycle = _review_lifecycle()
     _restore_lifecycle_candidate(lifecycle, candidate, verification)
+    if action == "edit" and (
+        edited_candidate is None or edited_candidate.candidate_id != candidate_id
+    ):
+        raise HTTPException(status_code=422, detail="edited candidate ID must match the route")
     try:
         if action == "approve":
             updated = lifecycle.approve(candidate_id, reviewer_id, reason)
         elif action == "reject":
             updated = lifecycle.reject(candidate_id, reviewer_id, reason)
         else:
-            if edited_candidate is None or edited_candidate.candidate_id != candidate_id:
-                raise ValueError("edited candidate ID must match the route")
+            assert edited_candidate is not None
             edited_verification = verify_candidate(
                 _stored_filing_text(repository, candidate.source_id),
                 edited_candidate,
