@@ -236,3 +236,94 @@ def test_take_or_pay_stays_dormant_without_distress() -> None:
 
     assert result.edges == []
     assert "coreweave" not in result.nodes
+
+
+def test_take_or_pay_activates_on_default_and_uses_required_basis() -> None:
+    rel = StructuralRelationship(
+        "openai-coreweave",
+        "openai",
+        "coreweave",
+        StructureType.TAKE_OR_PAY,
+        _take_or_pay_provenance(),
+        committed_envelope=11_900,
+    )
+
+    result = run_compound_shock([rel], Shock("openai", default_status="defaulted"))
+
+    assert result.edges[0].basis == (
+        "take-or-pay contract envelope activated (not a realized loss)"
+    )
+    assert result.nodes["coreweave"].activated_exposure == 11_900
+
+
+def test_take_or_pay_accumulates_while_preserving_quantified_impact() -> None:
+    relationships = [
+        StructuralRelationship(
+            "openai-msft-equity",
+            "openai",
+            "msft",
+            StructureType.EQUITY_METHOD,
+            _equity_provenance(),
+            ownership_share=0.25,
+        ),
+        StructuralRelationship(
+            "openai-msft-contract-1",
+            "openai",
+            "msft",
+            StructureType.TAKE_OR_PAY,
+            _take_or_pay_provenance(),
+            committed_envelope=100,
+        ),
+        StructuralRelationship(
+            "openai-msft-contract-2",
+            "openai",
+            "msft",
+            StructureType.TAKE_OR_PAY,
+            _take_or_pay_provenance(),
+            committed_envelope=50,
+        ),
+    ]
+
+    result = run_compound_shock(
+        relationships,
+        Shock("openai", incremental_gaap_loss=400, credit_status="severe_distress"),
+    )
+
+    node = result.nodes["msft"]
+    assert node.quantified_impact == -100
+    assert node.activated_exposure == 150
+    assert node.epistemic_state == "quantified_impact"
+
+
+def test_take_or_pay_rejects_non_quantifying_or_missing_envelope() -> None:
+    non_quantifying = EdgeProvenance(
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.REPORTED,
+        ProvenanceLabel.ASSUMED,
+        ProvenanceLabel.CONSTRAINED,
+    )
+    relationships = [
+        StructuralRelationship(
+            "openai-coreweave-assumed",
+            "openai",
+            "coreweave",
+            StructureType.TAKE_OR_PAY,
+            non_quantifying,
+            committed_envelope=11_900,
+        ),
+        StructuralRelationship(
+            "openai-coreweave-missing",
+            "openai",
+            "coreweave",
+            StructureType.TAKE_OR_PAY,
+            _take_or_pay_provenance(),
+        ),
+    ]
+
+    result = run_compound_shock(
+        relationships,
+        Shock("openai", credit_status="severe_distress"),
+    )
+
+    assert result.edges == []
+    assert "coreweave" not in result.nodes

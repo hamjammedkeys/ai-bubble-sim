@@ -105,7 +105,11 @@ def run_compound_shock(
                 shock.credit_status == "severe_distress"
                 or shock.default_status == "defaulted"
             )
-            if not distressed or not quantifies_propagation(rel.provenance):
+            if (
+                not distressed
+                or rel.committed_envelope is None
+                or not quantifies_propagation(rel.provenance)
+            ):
                 continue
             edges.append(
                 EdgeResult(
