@@ -8,6 +8,7 @@ from fragility_map.model.evidence import (
 from fragility_map.model.propagation import (
     Shock,
     StructuralRelationship,
+    run_compound_shock,
 )
 from fragility_map.model.stress import (
     CompanyFinancials,
@@ -107,3 +108,35 @@ def _reported_provenance():
         ProvenanceLabel.CALCULATED,
         ProvenanceLabel.REPORTED,
     )
+
+
+def _equity_provenance() -> EdgeProvenance:
+    return EdgeProvenance(
+        ProvenanceLabel.REPORTED,   # relationship: ownership disclosed
+        ProvenanceLabel.REPORTED,   # magnitude: loss stated in shock
+        ProvenanceLabel.CALCULATED, # propagation: GAAP share is arithmetic
+        ProvenanceLabel.CONSTRAINED,
+    )
+
+
+def test_equity_method_produces_solid_red_impact() -> None:
+    rel = StructuralRelationship(
+        "openai-msft",
+        "openai",
+        "msft",
+        StructureType.EQUITY_METHOD,
+        _equity_provenance(),
+        ownership_share=0.27,
+    )
+    shock = Shock("openai", incremental_gaap_loss=10_000)
+
+    result = run_compound_shock([rel], shock)
+
+    edge = result.edges[0]
+    assert edge.tier == Tier.SOLID_RED
+    assert edge.result_kind == "impact"
+    assert edge.value == -2_700.0
+    node = result.nodes["msft"]
+    assert node.quantified_impact == -2_700.0
+    assert node.activated_exposure is None
+    assert node.epistemic_state == "quantified_impact"

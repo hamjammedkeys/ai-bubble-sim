@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
-from fragility_map.model.evidence import EdgeProvenance, StructureType, Tier
+from fragility_map.model.evidence import (
+    EdgeProvenance,
+    StructureType,
+    Tier,
+    quantifies_propagation,
+)
 
 
 @dataclass(frozen=True)
@@ -53,3 +58,40 @@ class NodeResult:
 class ShockResult:
     edges: list[EdgeResult]
     nodes: dict[str, NodeResult]
+
+
+def run_compound_shock(
+    relationships: list[StructuralRelationship],
+    shock: Shock,
+) -> ShockResult:
+    edges: list[EdgeResult] = []
+    nodes: dict[str, NodeResult] = {}
+
+    for rel in relationships:
+        if rel.source_company_id != shock.source_company_id:
+            continue
+        if rel.structure_type == StructureType.EQUITY_METHOD:
+            if shock.incremental_gaap_loss is None or not quantifies_propagation(
+                rel.provenance
+            ):
+                continue
+            value = -(rel.ownership_share * shock.incremental_gaap_loss)
+            edges.append(
+                EdgeResult(
+                    rel.relationship_id,
+                    rel.source_company_id,
+                    rel.target_company_id,
+                    Tier.SOLID_RED,
+                    "impact",
+                    round(value, 6),
+                    "equity-method share of stated GAAP loss",
+                )
+            )
+            nodes[rel.target_company_id] = NodeResult(
+                rel.target_company_id,
+                quantified_impact=round(value, 6),
+                activated_exposure=None,
+                epistemic_state="quantified_impact",
+            )
+
+    return ShockResult(edges=edges, nodes=nodes)
