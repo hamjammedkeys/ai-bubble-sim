@@ -58,6 +58,7 @@ class NodeResult:
 class ShockResult:
     edges: list[EdgeResult]
     nodes: dict[str, NodeResult]
+    shock: Shock | None = None
 
 
 def run_compound_shock(
@@ -160,7 +161,7 @@ def run_compound_shock(
                 ),
             )
 
-    return ShockResult(edges=edges, nodes=nodes)
+    return ShockResult(edges=edges, nodes=nodes, shock=shock)
 
 
 def run_edge_flow_shock(
