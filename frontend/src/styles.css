@@ -84,3 +84,68 @@ select {
   border-left: 1px solid #d9e2eb;
   border-right: 1px solid #d9e2eb;
 }
+
+.controls label {
+  display: grid;
+  gap: 6px;
+  color: #455a70;
+  font-size: 13px;
+}
+
+.controls select,
+.controls button {
+  width: 100%;
+  min-height: 36px;
+}
+
+.controls button {
+  margin-top: 12px;
+}
+
+.assumption,
+.scenario-language {
+  color: #5f7187;
+  font-size: 13px;
+}
+
+.api-error {
+  margin: -6px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #e2b5b5;
+  border-radius: 6px;
+  background: #fff4f4;
+  color: #8c2f2f;
+  font-size: 13px;
+}
+
+dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+dt {
+  color: #607086;
+  font-size: 12px;
+}
+
+dd {
+  margin: 2px 0 0;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .left-rail,
+  .right-rail {
+    order: 2;
+  }
+
+  .network-map {
+    min-height: 60vh;
+    order: 1;
+  }
+}

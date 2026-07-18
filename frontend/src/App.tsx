@@ -1,5 +1,9 @@
-import { useState } from "react";
-import type { GraphPayload } from "./types";
+import { useCallback, useEffect, useState } from "react";
+import { runCloudSlowdown } from "./api";
+import { CompanyPanel } from "./components/CompanyPanel";
+import { ResultsPanel } from "./components/ResultsPanel";
+import { ScenarioControls } from "./components/ScenarioControls";
+import type { GraphNode, GraphPayload } from "./types";
 
 const initialGraph: GraphPayload = {
   nodes: [],
@@ -13,7 +17,32 @@ const initialGraph: GraphPayload = {
 };
 
 export default function App() {
-  const [graph] = useState<GraphPayload>(initialGraph);
+  const [graph, setGraph] = useState<GraphPayload>(initialGraph);
+  const [shock, setShock] = useState(0.3);
+  const [selectedNode] = useState<GraphNode | null>(null);
+  const [replayToken, setReplayToken] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const runScenario = useCallback(async () => {
+    setError(null);
+    try {
+      const payload = await runCloudSlowdown({
+        shock_percentage: shock,
+        pass_through_rate: 0.8,
+        propagation_factor: 0.5,
+        max_rounds: 3
+      });
+      setGraph(payload);
+      setReplayToken((value) => value + 1);
+    } catch {
+      setGraph(initialGraph);
+      setError("Unable to load scenario results.");
+    }
+  }, [shock]);
+
+  useEffect(() => {
+    void runScenario();
+  }, [runScenario]);
 
   return (
     <main className="app-shell">
@@ -23,17 +52,17 @@ export default function App() {
       </header>
       <section className="workspace">
         <aside className="left-rail">
-          <section className="panel controls">
-            <h2>Cloud AI Spending Slowdown</h2>
-            <button type="button">Run shock</button>
-          </section>
+          <ScenarioControls shock={shock} onShockChange={setShock} onRun={runScenario} />
+          {error && <p className="api-error" role="alert">{error}</p>}
+          <ResultsPanel graph={graph} />
         </aside>
-        <section className="network-map" aria-label="AI supply-chain network map" />
+        <section
+          className="network-map"
+          aria-label="AI supply-chain network map"
+          data-replay-token={replayToken}
+        />
         <aside className="right-rail">
-          <section className="panel">
-            <h2>Company</h2>
-            <p>Select a node to inspect estimated impact and source basis.</p>
-          </section>
+          <CompanyPanel node={selectedNode} />
         </aside>
       </section>
     </main>
