@@ -1,3 +1,16 @@
 .DS_Store
+.env
+.pytest_cache/
+.ruff_cache/
 .superpowers/
 .worktrees/
+__pycache__/
+*.pyc
+node_modules/
+frontend/node_modules/
+frontend/dist/
+data/ai_fragility.duckdb
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
