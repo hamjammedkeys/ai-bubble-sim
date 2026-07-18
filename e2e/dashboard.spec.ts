@@ -114,7 +114,10 @@ test("hero compound credit event preserves evidence grammar", async ({ page }) =
 
   await page.goto("/");
   await expect(page.getByRole("button", { name: "Run compound credit event" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run shock" })).toHaveCount(0);
+  const scenarioRequestCount = scenarioRequests.length;
   await page.getByRole("button", { name: "Run compound credit event" }).click();
+  await expect.poll(() => scenarioRequests.length).toBe(scenarioRequestCount + 1);
   await expect(page.getByText("Observed shock: $10.0B incremental GAAP loss")).toBeVisible();
   await expect(page.getByText("Credit status: severe distress · Default status: not defaulted")).toBeVisible();
   await expect(page.getByText("Calculated Impact", { exact: true })).toBeVisible();
