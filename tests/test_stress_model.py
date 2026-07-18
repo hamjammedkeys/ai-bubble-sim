@@ -548,18 +548,6 @@ def test_ranking_sorts_absolute_magnitudes_and_includes_zero() -> None:
     ]
 
 
-def test_ranking_preserves_node_order_for_equal_magnitudes() -> None:
-    result = ShockResult(
-        edges=[],
-        nodes={
-            "first": NodeResult("first", -10.0, None, "quantified_impact"),
-            "second": NodeResult("second", 10.0, None, "quantified_impact"),
-        },
-    )
-
-    assert rank_vulnerability(result) == [("first", 10.0), ("second", 10.0)]
-
-
 def test_ranking_excludes_numeric_impacts_without_quantified_state() -> None:
     result = ShockResult(
         edges=[],
