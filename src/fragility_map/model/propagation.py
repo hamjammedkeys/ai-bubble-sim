@@ -71,8 +71,10 @@ def run_compound_shock(
         if rel.source_company_id != shock.source_company_id:
             continue
         if rel.structure_type == StructureType.EQUITY_METHOD:
-            if shock.incremental_gaap_loss is None or not quantifies_propagation(
-                rel.provenance
+            if (
+                shock.incremental_gaap_loss is None
+                or rel.ownership_share is None
+                or not quantifies_propagation(rel.provenance)
             ):
                 continue
             value = -(rel.ownership_share * shock.incremental_gaap_loss)
@@ -87,10 +89,12 @@ def run_compound_shock(
                     "equity-method share of stated GAAP loss",
                 )
             )
+            existing = nodes.get(rel.target_company_id)
+            exposure = existing.activated_exposure if existing else None
             nodes[rel.target_company_id] = NodeResult(
                 rel.target_company_id,
                 quantified_impact=round(value, 6),
-                activated_exposure=None,
+                activated_exposure=exposure,
                 epistemic_state="quantified_impact",
             )
 

@@ -140,3 +140,20 @@ def test_equity_method_produces_solid_red_impact() -> None:
     assert node.quantified_impact == -2_700.0
     assert node.activated_exposure is None
     assert node.epistemic_state == "quantified_impact"
+
+
+def test_equity_edge_skipped_when_no_gaap_loss() -> None:
+    rel = StructuralRelationship(
+        "openai-msft",
+        "openai",
+        "msft",
+        StructureType.EQUITY_METHOD,
+        _equity_provenance(),
+        ownership_share=0.27,
+    )
+    shock = Shock("openai")
+
+    result = run_compound_shock([rel], shock)
+
+    assert result.edges == []
+    assert "msft" not in result.nodes
