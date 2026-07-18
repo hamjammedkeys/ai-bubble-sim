@@ -187,3 +187,52 @@ def test_equity_method_accumulates_impacts_for_same_target() -> None:
     assert node.quantified_impact == -4_000.0
     assert node.activated_exposure is None
     assert node.epistemic_state == "quantified_impact"
+
+
+def _take_or_pay_provenance() -> EdgeProvenance:
+    return EdgeProvenance(
+        ProvenanceLabel.REPORTED,   # contract disclosed
+        ProvenanceLabel.REPORTED,   # envelope amount disclosed
+        ProvenanceLabel.CALCULATED, # envelope is a stated figure
+        ProvenanceLabel.CONSTRAINED,
+    )
+
+
+def test_take_or_pay_produces_solid_orange_exposure_not_loss() -> None:
+    rel = StructuralRelationship(
+        "openai-coreweave",
+        "openai",
+        "coreweave",
+        StructureType.TAKE_OR_PAY,
+        _take_or_pay_provenance(),
+        committed_envelope=11_900,
+    )
+    shock = Shock("openai", incremental_gaap_loss=10_000, credit_status="severe_distress")
+
+    result = run_compound_shock([rel], shock)
+
+    edge = result.edges[0]
+    assert edge.tier == Tier.SOLID_ORANGE
+    assert edge.result_kind == "exposure"
+    assert edge.value == 11_900
+    node = result.nodes["coreweave"]
+    assert node.activated_exposure == 11_900
+    assert node.quantified_impact is None
+    assert node.epistemic_state == "exposure_detected"
+
+
+def test_take_or_pay_stays_dormant_without_distress() -> None:
+    rel = StructuralRelationship(
+        "openai-coreweave",
+        "openai",
+        "coreweave",
+        StructureType.TAKE_OR_PAY,
+        _take_or_pay_provenance(),
+        committed_envelope=11_900,
+    )
+    shock = Shock("openai", incremental_gaap_loss=10_000)  # credit_status defaults normal
+
+    result = run_compound_shock([rel], shock)
+
+    assert result.edges == []
+    assert "coreweave" not in result.nodes

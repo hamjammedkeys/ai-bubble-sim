@@ -100,5 +100,37 @@ def run_compound_shock(
                 activated_exposure=exposure,
                 epistemic_state="quantified_impact",
             )
+        elif rel.structure_type == StructureType.TAKE_OR_PAY:
+            distressed = (
+                shock.credit_status == "severe_distress"
+                or shock.default_status == "defaulted"
+            )
+            if not distressed or not quantifies_propagation(rel.provenance):
+                continue
+            edges.append(
+                EdgeResult(
+                    rel.relationship_id,
+                    rel.source_company_id,
+                    rel.target_company_id,
+                    Tier.SOLID_ORANGE,
+                    "exposure",
+                    rel.committed_envelope,
+                    "take-or-pay contract envelope activated (not a realized loss)",
+                )
+            )
+            existing = nodes.get(rel.target_company_id)
+            impact = existing.quantified_impact if existing else None
+            existing_exposure = existing.activated_exposure if existing else None
+            exposure = rel.committed_envelope
+            if existing_exposure is not None:
+                exposure = existing_exposure + (exposure or 0.0)
+            nodes[rel.target_company_id] = NodeResult(
+                rel.target_company_id,
+                quantified_impact=impact,
+                activated_exposure=exposure,
+                epistemic_state=(
+                    "quantified_impact" if impact is not None else "exposure_detected"
+                ),
+            )
 
     return ShockResult(edges=edges, nodes=nodes)
