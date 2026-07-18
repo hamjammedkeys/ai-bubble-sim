@@ -182,10 +182,14 @@ def run_scenario(request: ScenarioRequest) -> dict:
     return build_graph_payload(companies, relationships, scenario)
 
 
-def _compound_result(shock: Shock) -> ShockResult:
+def _compound_result(
+    shock: Shock, include_realized_loss_guardrail: bool = False
+) -> ShockResult:
     """Run the hero's direct results and its documented behavioural downstream link."""
     relationships = hero_relationships()
-    direct_result = run_compound_shock(relationships, shock)
+    direct_result = run_compound_shock(
+        relationships, shock, include_realized_loss_guardrail=include_realized_loss_guardrail
+    )
     downstream_result = run_compound_shock(
         relationships,
         Shock("coreweave", credit_status=shock.credit_status, default_status=shock.default_status),
@@ -203,9 +207,14 @@ def _v2_payload(
     candidates: tuple[RelationshipCandidateV2, ...] = (),
     verifications: tuple[VerificationResult, ...] = (),
     audit_entries: tuple[dict[str, Any], ...] = (),
+    include_realized_loss_guardrail: bool = False,
 ) -> dict[str, object]:
     payload = build_evidence_payload(
-        hero_companies(), hero_relationships(), _compound_result(shock), candidates
+        hero_companies(),
+        hero_relationships(),
+        _compound_result(shock, include_realized_loss_guardrail),
+        candidates,
+        include_realized_loss_guardrail=include_realized_loss_guardrail,
     )
     review_candidates = payload["reviewCandidates"]
     assert isinstance(review_candidates, list)
@@ -401,7 +410,8 @@ def run_compound_credit_event(request: CompoundCreditEventRequest) -> dict[str, 
             request.incremental_gaap_loss,
             request.credit_status,
             request.default_status,
-        )
+        ),
+        include_realized_loss_guardrail=True,
     )
 
 

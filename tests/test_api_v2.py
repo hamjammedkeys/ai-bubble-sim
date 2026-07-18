@@ -50,6 +50,27 @@ def test_compound_credit_event_returns_impact_exposure_and_dissolve() -> None:
     )
 
 
+def test_compound_credit_event_returns_realized_loss_guardrail() -> None:
+    response = TestClient(app).post(
+        "/api/v2/scenario/compound-credit-event",
+        json={
+            "incremental_gaap_loss": 10_000_000_000,
+            "credit_status": "severe_distress",
+            "default_status": "not_defaulted",
+        },
+    )
+
+    assert response.status_code == 200
+    guardrail = next(
+        edge
+        for edge in response.json()["edges"]
+        if edge["relationshipId"] == "openai-coreweave-realized-loss"
+    )
+    assert guardrail["tier"] == "dashed_amber"
+    assert guardrail["resultKind"] == "realized_loss_unidentifiable"
+    assert guardrail["value"] is None
+
+
 def test_compound_credit_event_rejects_missing_or_invalid_state() -> None:
     response = TestClient(app).post(
         "/api/v2/scenario/compound-credit-event", json={"incremental_gaap_loss": -1}
