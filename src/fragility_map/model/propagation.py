@@ -90,10 +90,13 @@ def run_compound_shock(
                 )
             )
             existing = nodes.get(rel.target_company_id)
+            rounded_value = round(value, 6)
+            existing_impact = existing.quantified_impact if existing else None
+            impact = round((existing_impact or 0.0) + rounded_value, 6)
             exposure = existing.activated_exposure if existing else None
             nodes[rel.target_company_id] = NodeResult(
                 rel.target_company_id,
-                quantified_impact=round(value, 6),
+                quantified_impact=impact,
                 activated_exposure=exposure,
                 epistemic_state="quantified_impact",
             )

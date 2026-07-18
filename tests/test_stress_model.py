@@ -157,3 +157,33 @@ def test_equity_edge_skipped_when_no_gaap_loss() -> None:
 
     assert result.edges == []
     assert "msft" not in result.nodes
+
+
+def test_equity_method_accumulates_impacts_for_same_target() -> None:
+    relationships = [
+        StructuralRelationship(
+            "openai-msft-primary",
+            "openai",
+            "msft",
+            StructureType.EQUITY_METHOD,
+            _equity_provenance(),
+            ownership_share=0.27,
+        ),
+        StructuralRelationship(
+            "openai-msft-secondary",
+            "openai",
+            "msft",
+            StructureType.EQUITY_METHOD,
+            _equity_provenance(),
+            ownership_share=0.13,
+        ),
+    ]
+    shock = Shock("openai", incremental_gaap_loss=10_000)
+
+    result = run_compound_shock(relationships, shock)
+
+    assert [edge.value for edge in result.edges] == [-2_700.0, -1_300.0]
+    node = result.nodes["msft"]
+    assert node.quantified_impact == -4_000.0
+    assert node.activated_exposure is None
+    assert node.epistemic_state == "quantified_impact"
