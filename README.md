@@ -229,12 +229,39 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first 
 in particular the **evidence-first principle**: new features must never introduce
 fabricated or un-cited figures into the graph.
 
-## Acknowledgments
+## How GPT is used
 
-Parts of this project were built with AI coding assistants as iterative
-collaborators. All generated changes were reviewed and tested before being
-accepted; the evidence-first product boundary and design direction are the
-maintainer's own.
+GPT plays two distinct roles in this project.
+
+### In the product (runtime)
+
+OpenAI GPT models power the app's live intelligence when `LLM_PROVIDER=openai`:
+
+- **Filing extraction (ingest)** — GPT reads each filing chunk and proposes typed,
+  cited relationship candidates, using structured outputs so every claim carries
+  the verbatim passage it came from.
+- **Chat copilot** — GPT drives the assistant that ingests filings, answers
+  questions about a filing's content **with citations**, and creates and runs
+  scenarios through tool calls.
+
+Crucially, GPT only ever *proposes*. Its output is mechanically verified against
+the source text and must be human-approved before it can influence a scenario —
+so the model never inserts an un-cited or invented number into the graph. (A
+deterministic `fallback` provider is available for offline use with no key.)
+
+### At build time (development)
+
+GPT-5.6 and Codex were iterative engineering collaborators, not autonomous
+authors. They accelerated codebase exploration, the move from a
+40,000-character ingestion cutoff to bounded full-document chunking, UX work
+(evidence desk, grouped relationships, scenario cards, propagation animation),
+regression tests and browser-driven diagnosis, deployment hardening for Neon,
+Render, and Vercel, and repeated lint/test/build verification loops.
+
+Every generated change was read and tested before being accepted. The decisions
+that define the product stayed human: the evidence-first boundary and the
+refusal to invent missing financial values, the financial-terminal visual
+direction, the review-before-trust workflow, and the project's scope.
 
 ## License
 
