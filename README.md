@@ -2,20 +2,66 @@
 
 Evidence-backed AI infrastructure exposure mapping and scenario simulation.
 
-## What it does
+## Hackathon category
 
-FragilityGraph helps users investigate how a shock to one company can propagate
-through the AI infrastructure ecosystem. It combines a reviewable relationship
-graph with scenario results, so claims can be traced back to their supporting
-evidence instead of presented as unsupported forecasts.
+**Work and productivity**
+
+## Project description
+
+I built FragilityGraph to make a specific research task less brittle: finding a
+material relationship buried deep in a long SEC filing, checking the source,
+and understanding what else may be exposed if that company is stressed. The app
+reads the full filing in bounded chunks, turns supported claims into reviewable
+graph candidates, and runs evidence-backed propagation scenarios without filling
+missing values with invented numbers.
+
+## How it works
+
+1. Ingest a public filing URL.
+2. Extract the full filing in bounded chunks.
+3. Review cited relationship candidates.
+4. Run a company shock scenario on approved evidence.
+5. Inspect each result and its source in the evidence desk.
 
 ## Key capabilities
 
-- Ingest filings and turn supported relationships into graph candidates.
-- Review evidence, entities, and relationships before using them in the graph.
-- Model a shock and inspect how its effects propagate across connected companies.
-- Use the chat copilot to ask about the graph, ingest a filing URL, or create a
-  scenario.
+- Extract full filings in bounded, overlapping chunks rather than applying a
+  whole-document character cutoff.
+- Review cited relationship candidates before they enter the trusted graph.
+- Explore grouped relationships in the graph without losing their individual
+  evidence records.
+- Run scenario layers and watch their propagation animate across the graph.
+- Create scenarios through the chat copilot as well as the scenario interface.
+- Use a responsive evidence desk to inspect relationships, results, and sources.
+- Start with persistent, verified hero data in a fresh database.
+- Run locally with SQLite or use a hosted PostgreSQL database.
+
+## Sample data
+
+A fresh, empty database is seeded automatically with the verified hero graph:
+filings and passages, approved relationships, and an OpenAI shock scenario. No
+sample-data download is required. Existing non-empty databases are preserved, so
+the seed never overwrites work already in progress.
+
+## How GPT-5.6 and Codex accelerated the build
+
+GPT-5.6 and Codex were iterative engineering collaborators, not autonomous
+authors of the product. They accelerated repository exploration and helped turn
+the earlier 40,000-character ingestion cutoff into bounded full-document
+chunking. They supported iterative UX work on the evidence desk, grouped
+relationships, scenario cards, and propagation animation; regression tests and
+browser-driven diagnosis of hover flicker and disappearing scenario edges; and
+deployment hardening for Neon, Render, and Vercel. They also made it practical
+to repeat lint, unit-test, API-test, and production-build verification loops
+throughout the build.
+
+## Key decisions I kept human
+
+I set the evidence-first product boundary and refused to invent missing
+financial values. I chose the square financial-terminal visual direction and
+the review-before-trust workflow. I also made the category and scope decisions,
+then accepted generated changes only after reading them and testing the final
+behavior.
 
 ## Architecture
 
@@ -30,6 +76,13 @@ The application is split into two local services:
 The frontend calls the backend through `NEXT_PUBLIC_API_BASE`. The backend
 stores local data in SQLite by default and can use either a deterministic
 offline LLM fallback or OpenAI for extraction and the chat copilot.
+
+## Limitations
+
+- Extraction quality depends on source text and the selected LLM provider.
+- Candidate relationships require human review before entering the trusted graph.
+- Scenario outputs propagate declared evidence and assumptions; they are not investment advice or price forecasts.
+- The fallback provider is deterministic for demos but is not a substitute for model-backed extraction.
 
 ## Prerequisites
 
