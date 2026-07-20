@@ -35,11 +35,20 @@ def test_build_engine_configures_sqlite_and_never_logs_credentials(monkeypatch, 
     caplog.set_level(logging.DEBUG)
 
     build_engine("sqlite:///./demo.db")
+    build_engine("postgres://u:super-secret@host/db?sslmode=require")
 
     assert calls == [
-        (("sqlite:///./demo.db",), {"connect_args": {"check_same_thread": False}, "pool_pre_ping": True})
+        (
+            ("sqlite:///./demo.db",),
+            {"connect_args": {"check_same_thread": False}, "pool_pre_ping": True},
+        ),
+        (
+            ("postgresql+psycopg://u:super-secret@host/db?sslmode=require",),
+            {"connect_args": {}, "pool_pre_ping": True},
+        ),
     ]
-    assert "u:p@host" not in caplog.text
+    assert "super-secret" not in caplog.text
+    assert "postgres://u:super-secret@host/db?sslmode=require" not in caplog.text
 
 
 def test_build_engine_configures_postgres_without_sqlite_connect_args(monkeypatch):
