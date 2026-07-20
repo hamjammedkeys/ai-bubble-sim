@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine
+import sqlalchemy
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
@@ -10,11 +11,21 @@ class Base(DeclarativeBase):
     pass
 
 
-def _connect_args(url: str) -> dict:
-    return {"check_same_thread": False} if url.startswith("sqlite") else {}
+def normalize_database_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url.removeprefix("postgresql://")
+    return url
 
 
-engine = create_engine(settings.database_url, connect_args=_connect_args(settings.database_url))
+def build_engine(url: str) -> Engine:
+    normalized = normalize_database_url(url)
+    connect_args = {"check_same_thread": False} if normalized.startswith("sqlite") else {}
+    return sqlalchemy.create_engine(normalized, connect_args=connect_args, pool_pre_ping=True)
+
+
+engine = build_engine(settings.database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
