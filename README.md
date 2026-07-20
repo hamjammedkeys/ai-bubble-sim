@@ -108,6 +108,37 @@ the backend. Choose one of these settings in `.env`:
 Do not commit `.env` or `.env.local`; they can contain local credentials and
 machine-specific configuration.
 
+## Deployment
+
+Use the following dashboard sequence to deploy the demo with Neon, Render, and
+Vercel. Keep connection strings, API keys, and deployment-specific origins in
+the provider dashboards; do not add them to the repository.
+
+1. In Neon, create a project and copy its pooled PostgreSQL connection string.
+2. In Render, create a Blueprint from this repository's `render.yaml`. Confirm
+   it creates the `fragilitygraph-api` web service from the `main` branch, then
+   enter the Neon connection string as `DATABASE_URL`. The Blueprint defaults
+   to `LLM_PROVIDER=fallback`; if you change it to `openai`, also enter
+   `OPENAI_API_KEY` in the Render dashboard.
+3. Wait for the Render service's `/health` endpoint to return successfully.
+   Then request `/entities` and `/scenarios` and confirm the hero entities and
+   hero scenario are present.
+4. In Vercel, import this repository as a new project and set its Root Directory
+   to `revamp/frontend`. Keep the detected framework set to Next.js.
+5. In the Vercel project settings, set `NEXT_PUBLIC_API_BASE` to the public
+   Render service origin without a trailing slash, then deploy the frontend.
+6. Copy the final Vercel origin. In the Render service settings, set
+   `FRONTEND_ORIGIN` to that origin without a trailing slash and redeploy the
+   Render service.
+7. Open the Vercel app, run the hero scenario, and reload the page. Confirm the
+   graph remains available after the reload, demonstrating that the data is
+   persisted in Neon.
+
+Neon and Render free computes can wake from idle, so the first request after an
+idle period can be slower. For a deployment smoke check, verify `/health`, the
+hero entities and scenario API responses, a browser scenario run from the
+Vercel origin, and graph persistence after a page reload.
+
 ## Verification
 
 Run the backend tests from the repository root using the command that matches

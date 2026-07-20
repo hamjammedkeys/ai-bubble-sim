@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: fragilitygraph-api
+    runtime: python
+    plan: free
+    branch: main
+    rootDir: revamp/backend
+    buildCommand: uv sync --frozen
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: LLM_PROVIDER
+        value: fallback
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-2024-08-06
