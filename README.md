@@ -8,12 +8,13 @@ Evidence-backed AI infrastructure exposure mapping and scenario simulation.
 
 ## Project description
 
-I built FragilityGraph to make a specific research task less brittle: finding a
-material relationship buried deep in a long SEC filing, checking the source,
-and understanding what else may be exposed if that company is stressed. The app
-reads the full filing in bounded chunks, turns supported claims into reviewable
-graph candidates, and runs evidence-backed propagation scenarios without filling
-missing values with invented numbers.
+I built FragilityGraph for analysts and financial or infrastructure researchers
+to make a specific research task less brittle: finding a material relationship
+buried deep in a long SEC filing, checking the source, and understanding what
+else may be exposed if that company is stressed. The app reads the full filing
+in bounded chunks, turns supported claims into reviewable graph candidates, and
+runs evidence-backed propagation scenarios without filling missing values with
+invented numbers.
 
 ## How it works
 
@@ -21,7 +22,8 @@ missing values with invented numbers.
 2. Extract the full filing in bounded chunks.
 3. Review cited relationship candidates.
 4. Run a company shock scenario on approved evidence.
-5. Inspect each result and its source in the evidence desk.
+5. Inspect each result and its supporting evidence or declared assumptions in
+   the evidence desk.
 
 ## Key capabilities
 
@@ -39,9 +41,12 @@ missing values with invented numbers.
 ## Sample data
 
 A fresh, empty database is seeded automatically with the verified hero graph:
-filings and passages, approved relationships, and an OpenAI shock scenario. No
-sample-data download is required. Existing non-empty databases are preserved, so
-the seed never overwrites work already in progress.
+filings and passages, approved relationships, and a scenario modeling a shock to OpenAI.
+No sample-data download is required. Existing non-empty databases are preserved,
+so the seed never overwrites work already in progress. To recreate the sample
+safely alongside a populated database, set `DATABASE_URL` to a new SQLite path
+such as `sqlite:///./fragilitygraph-demo.db`; startup will seed that new empty
+database while leaving the original database untouched.
 
 ## How GPT-5.6 and Codex accelerated the build
 
