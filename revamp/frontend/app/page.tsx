@@ -112,6 +112,24 @@ export function groupedEdgeTraceKey(
   return activeEdgeId && memberIds.includes(activeEdgeId) ? activeEdgeId : "inactive";
 }
 
+export function graphFocusEdgeId({
+  hoveredEdgeId,
+  focusedEdgeId,
+  selectedEdgeId,
+  activeEntityFocus,
+  followingPropagation,
+}: {
+  hoveredEdgeId: string | null;
+  focusedEdgeId: string | null;
+  selectedEdgeId: string | null;
+  activeEntityFocus: string | null;
+  followingPropagation: boolean;
+}): string | null {
+  return hoveredEdgeId
+    ?? focusedEdgeId
+    ?? (activeEntityFocus || followingPropagation ? null : selectedEdgeId);
+}
+
 export function focusedEdgeIdAfterGroupBlur(
   focusedEdgeId: string | null,
   memberIds: string[],
@@ -438,6 +456,7 @@ export default function Home() {
   const [dataStatus, setDataStatus] = useState<DataStatus>("loading");
   const [layers, setLayers] = useState<ScenarioLayers>(() => ({ ...INITIAL_SCENARIO_LAYERS }));
   const [evidenceDrawerOpen, setEvidenceDrawerOpen] = useState(false);
+  const [followingPropagation, setFollowingPropagation] = useState(false);
   const isNarrowViewport = useMediaQuery(NARROW_VIEWPORT_QUERY);
   const animationCancelRef = useRef<(() => void) | null>(null);
   const runSnapshotRef = useRef<DeskRunSnapshot | null>(null);
@@ -483,6 +502,7 @@ export default function Home() {
     const closedState = drawerStateAfterClose();
     propagationFollowRef.current = closedState.followPropagation;
     if (!evidenceDrawerOpenRef.current) return;
+    setFollowingPropagation(closedState.followPropagation);
     evidenceDrawerOpenRef.current = closedState.open;
     setEvidenceDrawerOpen(closedState.open);
     const target = chooseDrawerFocusTarget(
@@ -544,6 +564,7 @@ export default function Home() {
 
   const selectEdge = useCallback((id: string, opener?: Element | null) => {
     propagationFollowRef.current = false;
+    setFollowingPropagation(false);
     openEvidenceDrawer(opener);
     openEdgeDetail(id);
   }, [openEdgeDetail, openEvidenceDrawer]);
@@ -554,6 +575,7 @@ export default function Home() {
 
   const selectEntity = useCallback((id: string, opener?: Element | null) => {
     propagationFollowRef.current = false;
+    setFollowingPropagation(false);
     invalidateEdgeDetailRequest(null);
     openEvidenceDrawer(opener);
     setSelectedEntityId(id);
@@ -564,6 +586,7 @@ export default function Home() {
 
   const clearSelection = useCallback(() => {
     propagationFollowRef.current = false;
+    setFollowingPropagation(false);
     invalidateEdgeDetailRequest(null);
     setSelected(null);
     setSelectedEntityId(null);
@@ -594,6 +617,7 @@ export default function Home() {
   const handleEdgeReviewed = useCallback(
     async (reviewed: Edge) => {
       propagationFollowRef.current = false;
+      setFollowingPropagation(false);
       invalidateEdgeDetailRequest(reviewed.id);
       setRecentlyApprovedEdgeId(reviewed.status === "approved" ? reviewed.id : null);
       setSelected(reviewed.id);
@@ -696,6 +720,7 @@ export default function Home() {
       const firstFrame = frames[0];
       setSelectedScenarioId(scenarioId);
       propagationFollowRef.current = true;
+      setFollowingPropagation(true);
       animationCancelRef.current?.();
       invalidateEdgeDetailRequest(null);
       runSnapshotRef.current = null;
@@ -743,6 +768,7 @@ export default function Home() {
     if (nextSnapshot !== runSnapshotRef.current) {
       scenarioMutationLockedRef.current = false;
       propagationFollowRef.current = false;
+      setFollowingPropagation(false);
       animationCancelRef.current?.();
       animationCancelRef.current = null;
       runSnapshotRef.current = nextSnapshot;
@@ -776,6 +802,7 @@ export default function Home() {
   const reset = useCallback(() => {
     scenarioMutationLockedRef.current = false;
     propagationFollowRef.current = false;
+    setFollowingPropagation(false);
     animationCancelRef.current?.();
     animationCancelRef.current = null;
     runSnapshotRef.current = null;
@@ -808,10 +835,16 @@ export default function Home() {
 
   const graphFocus = useMemo(() => {
     const activeEntityFocus = hoveredEntityId ?? focusedEntityId;
-    const edgeId = hoveredEdgeId ?? focusedEdgeId ?? (activeEntityFocus ? null : selected);
+    const edgeId = graphFocusEdgeId({
+      hoveredEdgeId,
+      focusedEdgeId,
+      selectedEdgeId: selected,
+      activeEntityFocus,
+      followingPropagation,
+    });
     const entityId = activeEntityFocus ?? selectedEntityId;
     return graphFocusFor(edges, edgeId, entityId);
-  }, [edges, focusedEdgeId, focusedEntityId, hoveredEdgeId, hoveredEntityId, selected, selectedEntityId]);
+  }, [edges, focusedEdgeId, focusedEntityId, followingPropagation, hoveredEdgeId, hoveredEntityId, selected, selectedEntityId]);
 
   // As the wave reveals each result, tint both endpoints with its strongest kind
   // (impact > exposure > unresolved) so the graph becomes a contagion map.

@@ -12,6 +12,7 @@ import {
   deskSnapshotFromChatRun,
   performChatScenarioAction,
   focusedEdgeIdAfterGroupBlur,
+  graphFocusEdgeId,
   groupedEdgeActivationForInput,
   groupedEdgeActivationId,
   groupedEdgeTraceKey,
@@ -175,6 +176,24 @@ describe("market terminal component contracts", () => {
     expect(groupedEdgeTraceKey("edge-b", memberIds)).toBe("edge-b");
     expect(groupedEdgeTraceKey("other-edge", memberIds)).toBe("inactive");
     expect(groupedEdgeTraceKey(null, memberIds)).toBe("inactive");
+  });
+
+  it("does not dim the network for an edge selected by propagation follow", () => {
+    expect(graphFocusEdgeId({
+      hoveredEdgeId: null,
+      focusedEdgeId: null,
+      selectedEdgeId: "edge-from-propagation",
+      activeEntityFocus: null,
+      followingPropagation: true,
+    })).toBeNull();
+
+    expect(graphFocusEdgeId({
+      hoveredEdgeId: null,
+      focusedEdgeId: null,
+      selectedEdgeId: "edge-from-user",
+      activeEntityFocus: null,
+      followingPropagation: false,
+    })).toBe("edge-from-user");
   });
 
   it("derives the selected underlying relationship group", () => {

@@ -10,7 +10,11 @@ import {
 
 describe("React Flow node dimensions", () => {
   it("pins the measured node size so hover updates do not hide nodes for remeasurement", () => {
-    expect(reactFlowNodeDimensions()).toEqual({ width: NODE_W, height: NODE_H });
+    expect(reactFlowNodeDimensions()).toEqual({
+      width: NODE_W,
+      height: NODE_H,
+      measured: { width: NODE_W, height: NODE_H },
+    });
   });
 });
 

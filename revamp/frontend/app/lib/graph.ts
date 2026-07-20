@@ -5,7 +5,11 @@ export const NODE_W = 184;
 export const NODE_H = 60;
 
 export function reactFlowNodeDimensions() {
-  return { width: NODE_W, height: NODE_H };
+  return {
+    width: NODE_W,
+    height: NODE_H,
+    measured: { width: NODE_W, height: NODE_H },
+  };
 }
 
 export type VisualState = "grey" | "impact" | "exposure" | "amber" | "candidate";
