@@ -150,6 +150,7 @@ def _tool_impls(session: Session) -> dict:
             known,
             document_id=doc.id,
             provider=settings.llm_provider,
+            filing_entity=doc.company,
         )
         edges = persist_candidates(session, result, doc)
         return {"document_id": doc.id, "title": doc.title, "candidates_created": len(edges)}

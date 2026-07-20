@@ -65,6 +65,7 @@ def extract_document(
         known_entities,
         document_id=document.id,
         provider=chosen_provider,
+        filing_entity=document.company,
     )
     edges = persist_candidates(session, result, document)
     return ExtractResponse(

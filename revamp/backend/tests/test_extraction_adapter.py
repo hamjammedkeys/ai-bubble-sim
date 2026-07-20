@@ -110,6 +110,61 @@ def test_build_messages_includes_entities_and_text():
     assert "OpenAI" in joined
 
 
+def test_build_messages_names_the_filing_entity_when_known():
+    msgs = build_messages("TEXT", ["OpenAI"], filing_entity="Microsoft Corporation")
+    joined = " ".join(m["content"] for m in msgs)
+    assert "Microsoft Corporation" in joined
+
+
+def _self_ref_parsed(source_entity: str) -> ExtractionResult:
+    return ExtractionResult.model_validate(
+        {
+            "candidates": [
+                {
+                    "source_entity": source_entity,
+                    "target_entity": "Anthropic",
+                    "relationship_type": "investment_exposure",
+                    "metric": "investment",
+                    "value": 8.0,
+                    "unit": "usd_billions",
+                    "period": None,
+                    "exact_passage": "We invested $8 billion in Anthropic.",
+                    "document_id": "x",
+                    "permitted_operation": "none",
+                    "unsupported_operation": "none",
+                    "missing_information": [],
+                    "evidence_class": "reported",
+                    "confidence_note": "c",
+                }
+            ]
+        }
+    )
+
+
+def test_self_reference_source_resolves_to_known_filing_entity():
+    client, _ = _fake_openai_client(_self_ref_parsed("the Company"))
+    result = extract_candidates(
+        "t", ["Anthropic"], provider="openai", client=client, filing_entity="Amazon"
+    )
+    assert len(result.candidates) == 1
+    assert result.candidates[0].source_entity == "Amazon"
+
+
+def test_self_reference_dropped_when_filing_entity_unknown():
+    # No registrant to bind "we" to → emit nothing rather than a "we" node.
+    client, _ = _fake_openai_client(_self_ref_parsed("we"))
+    result = extract_candidates("t", ["Anthropic"], provider="openai", client=client)
+    assert result.candidates == []
+
+
+def test_real_entity_names_are_untouched():
+    client, _ = _fake_openai_client(_self_ref_parsed("Amazon"))
+    result = extract_candidates(
+        "t", ["Anthropic"], provider="openai", client=client, filing_entity="Amazon"
+    )
+    assert result.candidates[0].source_entity == "Amazon"
+
+
 def test_document_extraction_scans_deep_chunks_and_deduplicates(monkeypatch):
     seen: list[str] = []
     candidate = ExtractionResult.model_validate(
