@@ -241,3 +241,8 @@ http://localhost:3000 in a browser.
 - **OpenAI requests fail:** use `LLM_PROVIDER=fallback` for offline mode, or
   confirm `OPENAI_API_KEY` and `OPENAI_MODEL` are set in
   `revamp/backend/.env` for OpenAI mode.
+
+## License
+
+Released under the [MIT License](LICENSE) — free to use, modify, and
+distribute, with attribution. Copyright (c) 2026 Dawn.
